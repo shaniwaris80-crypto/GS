@@ -7,7 +7,6 @@
   --accent:#4fd1c5;
   --danger:#ff5a67;
   --btn:#1f2a3a;
-  --btn2:#0f1420;
   --shadow: 0 10px 30px rgba(0,0,0,.35);
   --radius: 14px;
   --radius2: 10px;
@@ -188,6 +187,7 @@ h3{ margin: 0 0 10px; font-size:15px; }
   gap:10px;
   font-weight:800;
   font-size: 13px;
+  align-items:center;
 }
 .item .sub{
   margin-top:4px;
@@ -201,6 +201,7 @@ h3{ margin: 0 0 10px; font-size:15px; }
   border-radius: 999px;
   border:1px solid rgba(255,255,255,.10);
   color: var(--text);
+  white-space:nowrap;
 }
 .badge.ok{ border-color: rgba(79,209,197,.45); background: rgba(79,209,197,.12); }
 .badge.warn{ border-color: rgba(255,204,0,.35); background: rgba(255,204,0,.12); }
@@ -231,4 +232,22 @@ h3{ margin: 0 0 10px; font-size:15px; }
   text-align:center;
   border-top:1px solid rgba(255,255,255,.06);
   background: rgba(11,13,18,.65);
+}
+
+/* Dropzones */
+.dropzone{
+  border:2px dashed rgba(255,255,255,.22);
+  border-radius:12px;
+  padding:18px;
+  text-align:center;
+  color:var(--muted);
+}
+.dropzone.drag{
+  border-color: var(--accent);
+  background: rgba(79,209,197,.08);
+  color: var(--text);
+}
+
+.mono{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
