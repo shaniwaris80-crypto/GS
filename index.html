@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gestión de Facturas + Remesas SEPA (Local)</title>
+  <title>Facturas + Remesas SEPA (Local)</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
       <div class="logo">€</div>
       <div>
         <div class="title">Facturas + Remesas SEPA</div>
-        <div class="subtitle">Opción 1 — Local (sin servidor)</div>
+        <div class="subtitle">Local (sin servidor) — PDFs + Extractor + XML</div>
       </div>
     </div>
 
@@ -55,6 +55,18 @@
         <h2>Facturas</h2>
         <div class="panel-actions">
           <button class="btn" id="btnNewInvoice">+ Nueva factura</button>
+
+          <label class="btn ghost" style="display:inline-flex; align-items:center; gap:8px;">
+            📁 Subir PDFs
+            <input type="file" id="bulkPdf" multiple accept="application/pdf" hidden />
+          </label>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div class="dropzone" id="globalPdfDrop">
+          🧲 Arrastra aquí uno o varios PDFs para crear facturas automáticamente
+          <div class="muted small" style="margin-top:6px;">(También funciona arrastrando PDFs a cualquier parte de la página)</div>
         </div>
       </div>
 
@@ -64,7 +76,7 @@
           <div class="row">
             <div class="field">
               <label>Buscar</label>
-              <input class="input" id="invoiceSearch" placeholder="Nº factura, tag, cliente..." />
+              <input class="input" id="invoiceSearch" placeholder="Nº factura, tag, cliente o texto del PDF..." />
             </div>
             <div class="field">
               <label>Estado</label>
@@ -170,10 +182,11 @@
               <input class="input" id="cfgCreditorAddr" placeholder="Burgos, España" />
             </div>
           </div>
+
           <div class="panel-actions">
             <button class="btn" id="btnSaveConfig">Guardar ajustes</button>
           </div>
-          <p class="muted small">Cuando me des tus datos reales, lo dejamos perfecto para tu banco.</p>
+          <p class="muted small">Tip: sin CI, el XML SEPA normalmente no lo acepta el banco.</p>
         </div>
 
         <div class="card">
@@ -198,8 +211,13 @@
   </main>
 
   <footer class="footer">
-    <span class="muted">Local • Sin servidor • Datos guardados en tu navegador</span>
+    <span class="muted">Local • Offline • Datos en tu navegador (localStorage + IndexedDB)</span>
   </footer>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Tesseract OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <script src="app.js"></script>
 </body>
