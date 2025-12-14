@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Facturas + Remesas SEPA (Local)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">€</div>
+      <div>
+        <div class="title">Facturas + Remesas SEPA</div>
+        <div class="subtitle">Opción 1 — Local (sin servidor)</div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="clientes">Clientes</button>
+      <button class="tab" data-tab="facturas">Facturas</button>
+      <button class="tab" data-tab="remesas">Remesas</button>
+      <button class="tab" data-tab="reportes">Reportes</button>
+      <button class="tab" data-tab="ajustes">Ajustes</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- CLIENTES -->
+    <section class="panel active" id="tab-clientes">
+      <div class="panel-head">
+        <h2>Clientes (Deudores)</h2>
+        <div class="panel-actions">
+          <button class="btn" id="btnNewClient">+ Nuevo cliente</button>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>Listado</h3>
+          <input class="input" id="clientSearch" placeholder="Buscar cliente..." />
+          <div class="list" id="clientList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Cliente</h3>
+          <div id="clientFormWrap" class="muted">Selecciona un cliente o crea uno nuevo.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FACTURAS -->
+    <section class="panel" id="tab-facturas">
+      <div class="panel-head">
+        <h2>Facturas</h2>
+        <div class="panel-actions">
+          <button class="btn" id="btnNewInvoice">+ Nueva factura</button>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>Filtros</h3>
+          <div class="row">
+            <div class="field">
+              <label>Buscar</label>
+              <input class="input" id="invoiceSearch" placeholder="Nº factura, tag, cliente..." />
+            </div>
+            <div class="field">
+              <label>Estado</label>
+              <select class="input" id="invoiceStatusFilter">
+                <option value="">Todos</option>
+                <option value="PENDING">Pendiente</option>
+                <option value="IN_BATCH">En remesa</option>
+                <option value="PAID">Cobrada</option>
+                <option value="RETURNED">Devuelta</option>
+                <option value="CANCELLED">Anulada</option>
+              </select>
+            </div>
+          </div>
+          <div class="list" id="invoiceList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Factura</h3>
+          <div id="invoiceFormWrap" class="muted">Selecciona una factura o crea una nueva.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REMESAS -->
+    <section class="panel" id="tab-remesas">
+      <div class="panel-head">
+        <h2>Remesas (SEPA)</h2>
+        <div class="panel-actions">
+          <button class="btn" id="btnNewBatch">+ Crear remesa</button>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>Remesas creadas</h3>
+          <div class="list" id="batchList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Crear / Ver remesa</h3>
+          <div id="batchWrap" class="muted">Crea una remesa para generar el XML.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORTES -->
+    <section class="panel" id="tab-reportes">
+      <div class="panel-head">
+        <h2>Reportes</h2>
+        <div class="panel-actions">
+          <button class="btn" id="btnRefreshReports">Actualizar</button>
+        </div>
+      </div>
+
+      <div class="grid three">
+        <div class="card">
+          <h3>Resumen</h3>
+          <div class="kpis" id="kpis"></div>
+        </div>
+        <div class="card">
+          <h3>Totales por tag (Pendiente)</h3>
+          <div class="list" id="byTag"></div>
+        </div>
+        <div class="card">
+          <h3>Aging (Pendiente)</h3>
+          <div class="list" id="aging"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AJUSTES -->
+    <section class="panel" id="tab-ajustes">
+      <div class="panel-head">
+        <h2>Ajustes</h2>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h3>Datos del acreedor (tú)</h3>
+          <div class="row">
+            <div class="field">
+              <label>Nombre acreedor</label>
+              <input class="input" id="cfgCreditorName" placeholder="Ej. Frutería X" />
+            </div>
+            <div class="field">
+              <label>IBAN acreedor</label>
+              <input class="input" id="cfgCreditorIban" placeholder="ES..." />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Creditor Identifier (CI)</label>
+              <input class="input" id="cfgCreditorCI" placeholder="Ej. ES12ZZZ..." />
+            </div>
+            <div class="field">
+              <label>Creditor BIC (opcional)</label>
+              <input class="input" id="cfgCreditorBic" placeholder="Ej. CAIXESBBXXX" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>Dirección / ciudad (opcional)</label>
+              <input class="input" id="cfgCreditorAddr" placeholder="Burgos, España" />
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" id="btnSaveConfig">Guardar ajustes</button>
+          </div>
+          <p class="muted small">Cuando me des tus datos reales, lo dejamos perfecto para tu banco.</p>
+        </div>
+
+        <div class="card">
+          <h3>Backup & Restore</h3>
+          <div class="panel-actions">
+            <button class="btn" id="btnExport">Exportar backup (JSON)</button>
+            <label class="btn ghost" for="importFile">Importar backup</label>
+            <input id="importFile" type="file" accept="application/json" hidden />
+          </div>
+
+          <hr class="sep" />
+
+          <h3>Trazabilidad (audit log)</h3>
+          <div class="list" id="auditList"></div>
+
+          <hr class="sep" />
+          <button class="btn danger" id="btnReset">Borrar TODO (local)</button>
+          <p class="muted small">Esto elimina datos del navegador. Haz backup antes.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="muted">Local • Sin servidor • Datos guardados en tu navegador</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
