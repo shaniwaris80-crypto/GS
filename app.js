@@ -1,12 +1,17 @@
-/* =========================
-   Facturas + Remesas SEPA (Local)
-   - localStorage
-   - Backup/restore JSON
-   - XML pain.008 básico (ISO 20022)
-========================= */
+/* ==========================================================
+   FACTURAS + REMESAS SEPA (LOCAL)
+   - localStorage: datos (clientes, facturas, remesas, audit)
+   - IndexedDB: PDFs
+   - PDF.js: lectura de texto
+   - Tesseract.js: OCR si PDF escaneado
+   - Crear factura desde PDF + extracción automática
+   - Búsqueda por texto del PDF
+   - XML pain.008 agrupado por SeqTp (FRST/RCUR/OOFF/FNAL)
+========================================================== */
 
-const LS_KEY = "INV_SEPA_APP_V1";
+const LS_KEY = "INV_SEPA_APP_V2_FULL";
 
+/* ---------- Helpers ---------- */
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : ("id-" + Math.random().toString(16).slice(2) + Date.now()));
 const nowISO = () => new Date().toISOString();
 const today = () => new Date().toISOString().slice(0,10);
@@ -15,6 +20,7 @@ function money(n){
   const x = Number(n || 0);
   return x.toLocaleString("es-ES", { style:"currency", currency:"EUR" });
 }
+
 function escXml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
@@ -23,14 +29,33 @@ function escXml(s){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&apos;");
 }
+
 function normalizeIban(v){
   return String(v||"").toUpperCase().replace(/\s+/g,"").trim();
 }
+
+/* IBAN full checksum validation */
 function isValidIban(iban){
-  // Validación básica (formato). Se puede mejorar con checksum.
   const x = normalizeIban(iban);
-  return /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(x);
+  if(!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(x)) return false;
+  // Move first 4 to end
+  const rearr = x.slice(4) + x.slice(0,4);
+  // Convert letters to numbers A=10..Z=35
+  let expanded = "";
+  for (const ch of rearr){
+    if(ch >= "A" && ch <= "Z") expanded += String(ch.charCodeAt(0) - 55);
+    else expanded += ch;
+  }
+  // mod 97
+  let remainder = 0;
+  for (let i=0; i<expanded.length; i++){
+    const digit = expanded.charCodeAt(i) - 48;
+    if (digit < 0 || digit > 9) return false;
+    remainder = (remainder * 10 + digit) % 97;
+  }
+  return remainder === 1;
 }
+
 function downloadText(filename, text, mime="application/xml"){
   const blob = new Blob([text], {type:mime});
   const url = URL.createObjectURL(blob);
@@ -43,6 +68,9 @@ function downloadText(filename, text, mime="application/xml"){
   URL.revokeObjectURL(url);
 }
 
+function safeLower(s){ return String(s||"").toLowerCase(); }
+
+/* ---------- State ---------- */
 function loadState(){
   const raw = localStorage.getItem(LS_KEY);
   if(!raw){
@@ -65,6 +93,13 @@ function loadState(){
   try { return JSON.parse(raw); } catch { return null; }
 }
 
+let state = loadState();
+if(!state){
+  alert("Error leyendo datos locales. Se reiniciará el almacenamiento.");
+  localStorage.removeItem(LS_KEY);
+  state = loadState();
+}
+
 function saveState(){
   localStorage.setItem(LS_KEY, JSON.stringify(state));
 }
@@ -79,24 +114,235 @@ function audit(entity, entityId, action, beforeObj, afterObj){
     before: beforeObj ?? null,
     after: afterObj ?? null,
   });
-  state.audit = state.audit.slice(0, 400); // límite
+  state.audit = state.audit.slice(0, 500);
   saveState();
-}
-
-let state = loadState();
-if(!state){
-  alert("Error leyendo datos locales. Se reiniciará el almacenamiento.");
-  localStorage.removeItem(LS_KEY);
-  state = loadState();
 }
 
 let selectedClientId = null;
 let selectedInvoiceId = null;
 let selectedBatchId = null;
 
-/* =========================
+/* ==========================================================
+   IndexedDB for PDFs
+========================================================== */
+const PDF_DB = "INVOICE_PDFS_DB";
+const PDF_STORE = "pdfs";
+
+function openPdfDB(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(PDF_DB, 1);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(PDF_STORE, { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function savePdfFile(file){
+  const db = await openPdfDB();
+  const id = uid();
+  const tx = db.transaction(PDF_STORE, "readwrite");
+  tx.objectStore(PDF_STORE).put({ id, name: file.name, blob: file, created_at: nowISO() });
+  return id;
+}
+
+async function getPdfFile(id){
+  const db = await openPdfDB();
+  return new Promise(res=>{
+    const tx = db.transaction(PDF_STORE, "readonly");
+    const req = tx.objectStore(PDF_STORE).get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => res(null);
+  });
+}
+
+async function deletePdfFile(id){
+  const db = await openPdfDB();
+  const tx = db.transaction(PDF_STORE, "readwrite");
+  tx.objectStore(PDF_STORE).delete(id);
+}
+
+/* ==========================================================
+   PDF extraction (PDF.js + OCR fallback)
+========================================================== */
+async function extractTextFromPdf(blob){
+  // pdfjsLib available via CDN
+  const buf = await blob.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = "";
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const c = await page.getTextContent();
+    text += c.items.map(x=>x.str).join(" ") + "\n";
+  }
+  return text.trim();
+}
+
+async function extractTextOCR(blob){
+  const r = await Tesseract.recognize(blob, "spa+eng");
+  return (r?.data?.text || "").trim();
+}
+
+/* Parser mejorado ES */
+function parseInvoiceData(text){
+  const t = String(text || "");
+
+  const invoiceNo =
+    t.match(/(?:N[ºo]\s*Factura|N[ºo]\s*|Factura|Invoice)\s*[:#]?\s*([A-Z0-9][A-Z0-9\-\/]{2,})/i)?.[1] ||
+    t.match(/\b([A-Z]{1,5}-\d{3,}[\w\-\/]*)\b/i)?.[1] ||
+    "";
+
+  const date =
+    t.match(/\b(\d{2}\/\d{2}\/\d{4})\b/)?.[1] ||
+    t.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] ||
+    "";
+
+  // Convert date to yyyy-mm-dd if dd/mm/yyyy
+  let dateNorm = date;
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(date)){
+    const [dd,mm,yyyy] = date.split("/");
+    dateNorm = `${yyyy}-${mm}-${dd}`;
+  }
+
+  const amountRaw =
+    t.match(/(?:TOTAL\s*(?:FACTURA)?|IMPORTE\s*TOTAL|TOTAL\s*A\s*PAGAR)\s*[:€]?\s*([0-9][0-9\.\,]{1,})/i)?.[1] ||
+    t.match(/\bTotal\b[^\d]{0,10}([0-9][0-9\.\,]{1,})/i)?.[1] ||
+    "";
+
+  let amount = "";
+  if(amountRaw){
+    // 1.234,56 -> 1234.56 ; 1,234.56 -> 1234.56
+    const s = amountRaw.trim();
+    const hasComma = s.includes(",");
+    const hasDot = s.includes(".");
+    let normalized = s;
+    if(hasComma && hasDot){
+      // assume dot thousands, comma decimals (ES)
+      normalized = s.replace(/\./g,"").replace(",",".");
+    }else if(hasComma && !hasDot){
+      normalized = s.replace(",",".");
+    }else{
+      // only dot
+      normalized = s;
+    }
+    const n = Number(normalized);
+    if(Number.isFinite(n)) amount = Number(n.toFixed(2));
+  }
+
+  return {
+    invoice_no: invoiceNo,
+    date: dateNorm,
+    amount
+  };
+}
+
+function pdfStatusBadge(inv){
+  if(!inv.pdf_id) return "";
+  const s = inv.extracted?.status || "MANUAL";
+  if(s === "OK") return `<span class="badge ok">PDF OK</span>`;
+  if(s === "EXTRACTED") return `<span class="badge warn">Extraído</span>`;
+  return `<span class="badge">Manual</span>`;
+}
+
+/* Attach pdf to existing invoice */
+async function attachPdfToInvoice(inv, file){
+  const before = structuredClone(inv);
+  if(inv.pdf_id){
+    // replace old file
+    try { await deletePdfFile(inv.pdf_id); } catch {}
+  }
+  const pdfId = await savePdfFile(file);
+  inv.pdf_id = pdfId;
+  inv.pdf_name = file.name;
+  inv.pdf_text = "";
+  inv.extracted = { invoice_no:"", date:"", amount:"", confidence:0, status:"MANUAL" };
+  inv.updated_at = nowISO();
+  audit("invoice", inv.id, "attach_pdf", before, { pdf_id: inv.pdf_id, pdf_name: inv.pdf_name });
+  saveState();
+}
+
+/* Create invoice from PDF (auto) */
+async function createInvoiceFromPdf(file){
+  const pdfId = await savePdfFile(file);
+  const inv = {
+    id: uid(),
+    invoice_no: "",
+    invoice_date: today(),
+    collection_date: today(),
+    tag: "",
+    amount: "",
+    currency: "EUR",
+    client_id: null,
+    mandate_id: null,
+    status: "PENDING",
+    notes: "",
+    pdf_id: pdfId,
+    pdf_name: file.name,
+    pdf_text: "",
+    extracted: { invoice_no:"", date:"", amount:"", confidence:0, status:"MANUAL" },
+    created_at: nowISO(),
+    updated_at: nowISO(),
+  };
+  state.invoices.unshift(inv);
+  audit("invoice", inv.id, "create_from_pdf", null, { pdf_name: file.name });
+  saveState();
+  await extractAndApplyPdf(inv);
+}
+
+/* Extract and apply */
+async function extractAndApplyPdf(inv){
+  if(!inv.pdf_id) return;
+  const pdf = await getPdfFile(inv.pdf_id);
+  if(!pdf?.blob) return;
+
+  let text = "";
+  try{
+    text = await extractTextFromPdf(pdf.blob);
+  }catch{
+    text = "";
+  }
+  if((text || "").length < 60){
+    try{
+      text = await extractTextOCR(pdf.blob);
+    }catch{
+      text = text || "";
+    }
+  }
+
+  inv.pdf_text = text || "";
+  const data = parseInvoiceData(inv.pdf_text);
+
+  const before = structuredClone(inv);
+
+  if(data.invoice_no) inv.invoice_no = data.invoice_no;
+  if(data.date) inv.invoice_date = data.date;
+  if(data.amount) inv.amount = data.amount;
+
+  const ok = !!(data.invoice_no && data.amount);
+  inv.extracted = {
+    ...data,
+    confidence: (inv.pdf_text.length > 350 ? 0.9 : (inv.pdf_text.length > 150 ? 0.75 : 0.6)),
+    status: ok ? "OK" : "EXTRACTED"
+  };
+  inv.updated_at = nowISO();
+
+  audit("invoice", inv.id, "pdf_extracted", before, inv.extracted);
+  saveState();
+}
+
+/* View PDF */
+async function viewPdfByInvoice(inv){
+  if(!inv.pdf_id) return alert("No hay PDF adjunto.");
+  const pdf = await getPdfFile(inv.pdf_id);
+  if(!pdf?.blob) return alert("PDF no encontrado en IndexedDB.");
+  const url = URL.createObjectURL(pdf.blob);
+  window.open(url, "_blank");
+}
+
+/* ==========================================================
    Tabs
-========================= */
+========================================================== */
 const tabs = document.getElementById("tabs");
 tabs.addEventListener("click", (e)=>{
   const btn = e.target.closest(".tab");
@@ -107,14 +353,14 @@ tabs.addEventListener("click", (e)=>{
   const key = btn.dataset.tab;
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   document.getElementById("tab-"+key).classList.add("active");
-  // render puntual
+
   if(key==="reportes") renderReports();
-  if(key==="ajustes") renderAudit();
+  if(key==="ajustes"){ renderConfig(); renderAudit(); }
 });
 
-/* =========================
+/* ==========================================================
    CLIENTES
-========================= */
+========================================================== */
 const clientList = document.getElementById("clientList");
 const clientSearch = document.getElementById("clientSearch");
 const clientFormWrap = document.getElementById("clientFormWrap");
@@ -127,19 +373,20 @@ document.getElementById("btnNewClient").addEventListener("click", ()=>{
 clientSearch.addEventListener("input", ()=> renderClients());
 
 function renderClients(){
-  const q = (clientSearch.value||"").toLowerCase().trim();
+  const q = safeLower(clientSearch.value).trim();
   const rows = state.clients
-    .filter(c => !q || (c.name||"").toLowerCase().includes(q) || (c.tax_id||"").toLowerCase().includes(q))
+    .filter(c => !q || safeLower(c.name).includes(q) || safeLower(c.tax_id).includes(q))
     .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
 
   clientList.innerHTML = rows.map(c=>{
     const active = c.id===selectedClientId ? "active":"";
-    const ok = isValidIban(c.iban) ? "ok":"warn";
+    const ok = c.iban ? (isValidIban(c.iban) ? "ok":"warn") : "warn";
+    const label = c.iban ? (isValidIban(c.iban) ? "IBAN OK" : "IBAN?") : "Sin IBAN";
     return `
       <div class="item ${active}" data-id="${c.id}">
         <div class="top">
           <span>${escXml(c.name||"(sin nombre)")}</span>
-          <span class="badge ${ok}">${isValidIban(c.iban) ? "IBAN OK" : "IBAN?"}</span>
+          <span class="badge ${ok}">${label}</span>
         </div>
         <div class="sub">${escXml(c.tax_id||"")}${c.tax_id ? " · ":""}${escXml(c.iban||"")}</div>
       </div>
@@ -156,7 +403,6 @@ function renderClients(){
     });
   });
 
-  // si seleccionado existe
   if(selectedClientId){
     const c = state.clients.find(x=>x.id===selectedClientId);
     const m = state.mandates.find(x=>x.client_id===selectedClientId && x.is_active) || null;
@@ -205,7 +451,7 @@ function renderClientForm(client, mandate){
         <input class="input" id="c_phone" value="${escXml(c.phone||"")}" placeholder="+34..." />
       </div>
       <div class="field">
-        <label>Mandato activo</label>
+        <label>Esquema mandato</label>
         <select class="input" id="m_scheme">
           <option value="CORE" ${m.scheme==="CORE"?"selected":""}>CORE</option>
           <option value="B2B" ${m.scheme==="B2B"?"selected":""}>B2B</option>
@@ -216,7 +462,7 @@ function renderClientForm(client, mandate){
     <div class="row">
       <div class="field">
         <label>Mandate ID</label>
-        <input class="input" id="m_id" value="${escXml(m.mandate_id||"")}" placeholder="Ej. MND-${c.id ? c.id.slice(0,6):"000001"}" />
+        <input class="input" id="m_id" value="${escXml(m.mandate_id||"")}" placeholder="Ej. MND-00001" />
       </div>
       <div class="field">
         <label>Fecha firma mandato</label>
@@ -249,7 +495,7 @@ function renderClientForm(client, mandate){
     </div>
 
     <p class="muted small" style="margin-top:10px">
-      Consejo: guarda un Mandate ID estable por cliente. Si el banco lo valida, evita rechazos.
+      Consejo: usa Mandate ID estable por cliente. En SEPA es crítico.
     </p>
   `;
 
@@ -268,17 +514,15 @@ function renderClientForm(client, mandate){
 
     if(!newClient.name) return alert("Falta el nombre del cliente.");
     if(newClient.iban && !isValidIban(newClient.iban)) {
-      if(!confirm("El IBAN parece inválido. ¿Guardar igualmente?")) return;
+      if(!confirm("El IBAN es inválido (checksum). ¿Guardar igualmente?")) return;
     }
 
-    // upsert
     const idx = state.clients.findIndex(x=>x.id===newClient.id);
     if(idx>=0) state.clients[idx]=newClient;
     else state.clients.unshift(newClient);
 
     audit("client", newClient.id, idx>=0?"update":"create", before, newClient);
 
-    // mandato (activo)
     const mandateObj = {
       id: m.id || uid(),
       client_id: newClient.id,
@@ -294,7 +538,7 @@ function renderClientForm(client, mandate){
       if(!confirm("Mandate ID vacío. Muchos bancos lo exigen. ¿Guardar igualmente?")) return;
     }
 
-    // desactivar otros mandatos del cliente si este queda activo
+    // disable other mandates if active
     if(mandateObj.is_active){
       state.mandates.forEach(mm=>{
         if(mm.client_id===newClient.id && mm.id!==mandateObj.id) mm.is_active=false;
@@ -311,25 +555,25 @@ function renderClientForm(client, mandate){
     saveState();
     selectedClientId = newClient.id;
     renderClients();
-    renderInvoices(); // por si cambia nombre en listas
+    renderInvoices();
     renderBatches();
   });
 
   const delBtn = document.getElementById("btnDeleteClient");
   if(delBtn){
     delBtn.addEventListener("click", ()=>{
-      if(!confirm("¿Eliminar cliente? También se perderán sus mandatos. (Facturas quedan, pero sin cliente)")) return;
+      if(!confirm("¿Eliminar cliente? Mandatos se borran. Facturas quedan sin cliente.")) return;
       const beforeC = structuredClone(state.clients.find(x=>x.id===c.id));
       state.clients = state.clients.filter(x=>x.id!==c.id);
       state.mandates = state.mandates.filter(x=>x.client_id!==c.id);
       audit("client", c.id, "delete", beforeC, null);
 
-      // desenlazar facturas
       state.invoices.forEach(inv=>{
         if(inv.client_id===c.id){
           const beforeI = structuredClone(inv);
           inv.client_id = null;
           inv.mandate_id = null;
+          inv.updated_at = nowISO();
           audit("invoice", inv.id, "update", beforeI, inv);
         }
       });
@@ -339,13 +583,14 @@ function renderClientForm(client, mandate){
       clientFormWrap.innerHTML = `<div class="muted">Selecciona un cliente o crea uno nuevo.</div>`;
       renderClients();
       renderInvoices();
+      renderBatches();
     });
   }
 }
 
-/* =========================
+/* ==========================================================
    FACTURAS
-========================= */
+========================================================== */
 const invoiceList = document.getElementById("invoiceList");
 const invoiceSearch = document.getElementById("invoiceSearch");
 const invoiceStatusFilter = document.getElementById("invoiceStatusFilter");
@@ -364,27 +609,45 @@ document.getElementById("btnNewInvoice").addEventListener("click", ()=>{
     client_id: selectedClientId || "",
     mandate_id: "",
     status:"PENDING",
-    notes:""
+    notes:"",
+    pdf_id: null,
+    pdf_name: null,
+    pdf_text: "",
+    extracted: { invoice_no:"", date:"", amount:"", confidence:0, status:"MANUAL" }
   });
 });
 
 invoiceSearch.addEventListener("input", renderInvoices);
 invoiceStatusFilter.addEventListener("change", renderInvoices);
 
+function statusBadge(status){
+  switch(status){
+    case "PENDING": return {label:"Pendiente", cls:"warn"};
+    case "IN_BATCH": return {label:"En remesa", cls:"ok"};
+    case "PAID": return {label:"Cobrada", cls:"ok"};
+    case "RETURNED": return {label:"Devuelta", cls:"danger"};
+    case "CANCELLED": return {label:"Anulada", cls:"danger"};
+    default: return {label: status, cls:"badge"};
+  }
+}
+
 function renderInvoices(){
-  const q = (invoiceSearch.value||"").toLowerCase().trim();
+  const q = safeLower(invoiceSearch.value).trim();
   const st = invoiceStatusFilter.value || "";
+
   const rows = state.invoices
     .filter(inv => !st || inv.status===st)
     .filter(inv => {
       if(!q) return true;
       const client = state.clients.find(c=>c.id===inv.client_id);
-      const s = [
+      const hay = [
         inv.invoice_no,
         inv.tag,
-        client?.name
+        client?.name,
+        inv.pdf_name,
+        inv.pdf_text
       ].join(" ").toLowerCase();
-      return s.includes(q);
+      return hay.includes(q);
     })
     .sort((a,b)=> (b.invoice_date||"").localeCompare(a.invoice_date||"") || (b.created_at||"").localeCompare(a.created_at||""));
 
@@ -396,9 +659,12 @@ function renderInvoices(){
       <div class="item ${active}" data-id="${inv.id}">
         <div class="top">
           <span>${escXml(inv.invoice_no || "(sin nº)")}</span>
-          <span class="badge ${badge.cls}">${badge.label}</span>
+          <div style="display:flex; gap:6px; align-items:center;">
+            ${pdfStatusBadge(inv)}
+            <span class="badge ${badge.cls}">${badge.label}</span>
+          </div>
         </div>
-        <div class="sub">${escXml(inv.invoice_date||"")} · ${escXml(inv.tag||"")} · ${escXml(client?.name||"—")} · <b>${money(inv.amount)}</b></div>
+        <div class="sub">${escXml(inv.invoice_date||"")} · ${escXml(inv.tag||"")} · ${escXml(client?.name||"—")} · <b>${money(inv.amount)}</b>${inv.pdf_name ? ` · 📎 ${escXml(inv.pdf_name)}` : ""}</div>
       </div>
     `;
   }).join("") || `<div class="muted small">No hay facturas.</div>`;
@@ -418,17 +684,6 @@ function renderInvoices(){
   }
 }
 
-function statusBadge(status){
-  switch(status){
-    case "PENDING": return {label:"Pendiente", cls:"warn"};
-    case "IN_BATCH": return {label:"En remesa", cls:"ok"};
-    case "PAID": return {label:"Cobrada", cls:"ok"};
-    case "RETURNED": return {label:"Devuelta", cls:"danger"};
-    case "CANCELLED": return {label:"Anulada", cls:"danger"};
-    default: return {label: status, cls:"badge"};
-  }
-}
-
 function renderInvoiceForm(inv){
   const clientOptions = state.clients
     .slice()
@@ -436,9 +691,12 @@ function renderInvoiceForm(inv){
     .map(c=> `<option value="${c.id}" ${c.id===inv.client_id?"selected":""}>${escXml(c.name||"")}</option>`)
     .join("");
 
-  const mandatesForClient = state.mandates.filter(m=>m.client_id===inv.client_id).sort((a,b)=> (b.is_active?1:0)-(a.is_active?1:0));
+  const mandatesForClient = state.mandates
+    .filter(m=>m.client_id===inv.client_id)
+    .sort((a,b)=> (b.is_active?1:0)-(a.is_active?1:0));
+
   const mandateOptions = mandatesForClient.map(m=>{
-    const label = `${m.mandate_id || "(sin MandateID)"} · ${m.scheme} ${m.is_active ? "· activo":""}`;
+    const label = `${m.mandate_id || "(sin MandateID)"} · ${m.scheme} ${m.is_active ? "· activo":""} · ${m.sequence_default||"RCUR"}`;
     return `<option value="${m.id}" ${m.id===inv.mandate_id?"selected":""}>${escXml(label)}</option>`;
   }).join("");
 
@@ -504,24 +762,95 @@ function renderInvoiceForm(inv){
       <input class="input" id="i_notes" value="${escXml(inv.notes||"")}" placeholder="Observaciones..." />
     </div>
 
+    <div class="sep"></div>
+
+    <div class="field">
+      <label>Adjuntar PDF</label>
+      <input class="input" type="file" id="i_pdf" accept="application/pdf" />
+      <div class="muted small" style="margin-top:6px;">
+        ${inv.pdf_name ? `📎 PDF actual: <b>${escXml(inv.pdf_name)}</b> · ${pdfStatusBadge(inv)}` : "No hay PDF adjunto."}
+      </div>
+    </div>
+
+    <div class="dropzone" id="pdfDrop" style="margin-top:10px;">
+      Arrastra aquí el PDF de esta factura
+    </div>
+
     <div class="panel-actions" style="margin-top:12px">
       <button class="btn" id="btnSaveInvoice">${inv.id ? "Guardar" : "Crear"}</button>
+      ${inv.id ? `<button class="btn ghost" id="btnExtractPdf" ${inv.pdf_id ? "" : "disabled"}>Extraer datos del PDF</button>` : ``}
+      ${inv.id ? `<button class="btn ghost" id="btnViewPdf" ${inv.pdf_id ? "" : "disabled"}>Ver PDF</button>` : ``}
       ${inv.id ? `<button class="btn ghost" id="btnMarkPaid">Marcar cobrada</button>` : ``}
       ${inv.id ? `<button class="btn danger" id="btnDeleteInvoice">Eliminar</button>` : ``}
     </div>
 
-    <p class="muted small" style="margin-top:10px">
-      Recomendado: usa Nº factura como EndToEndId en SEPA para trazabilidad.
-    </p>
+    <div class="sep"></div>
+    <div class="field">
+      <label>Texto PDF (para búsqueda) — vista rápida</label>
+      <textarea class="input mono" rows="6" readonly>${escXml((inv.pdf_text||"").slice(0, 1200))}${(inv.pdf_text||"").length>1200 ? "\n...\n(Recortado)" : ""}</textarea>
+      <div class="muted small" style="margin-top:6px;">La búsqueda en Facturas incluye el contenido del PDF.</div>
+    </div>
   `;
 
   document.getElementById("i_client").addEventListener("change", ()=>{
-    // re-render para refrescar mandatos
     const updated = structuredClone(inv);
     updated.client_id = document.getElementById("i_client").value;
     updated.mandate_id = "";
     renderInvoiceForm(updated);
   });
+
+  const pdfInput = document.getElementById("i_pdf");
+  if(pdfInput){
+    pdfInput.addEventListener("change", async (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const realInv = state.invoices.find(x=>x.id===inv.id);
+      if(!realInv) return;
+      await attachPdfToInvoice(realInv, file);
+      await extractAndApplyPdf(realInv);
+      renderInvoiceForm(realInv);
+      renderInvoices();
+    });
+  }
+
+  const dz = document.getElementById("pdfDrop");
+  if(dz){
+    dz.ondragover = (e)=>{ e.preventDefault(); dz.classList.add("drag"); };
+    dz.ondragleave = ()=> dz.classList.remove("drag");
+    dz.ondrop = async (e)=>{
+      e.preventDefault();
+      dz.classList.remove("drag");
+      const file = [...e.dataTransfer.files].find(f=>f.type==="application/pdf");
+      if(!file) return;
+      const realInv = state.invoices.find(x=>x.id===inv.id);
+      if(!realInv) return;
+      await attachPdfToInvoice(realInv, file);
+      await extractAndApplyPdf(realInv);
+      renderInvoiceForm(realInv);
+      renderInvoices();
+    };
+  }
+
+  const btnExtract = document.getElementById("btnExtractPdf");
+  if(btnExtract){
+    btnExtract.addEventListener("click", async ()=>{
+      const realInv = state.invoices.find(x=>x.id===inv.id);
+      if(!realInv) return;
+      await extractAndApplyPdf(realInv);
+      renderInvoiceForm(realInv);
+      renderInvoices();
+      alert("Extracción completada. Revisa y guarda si quieres ajustar algo.");
+    });
+  }
+
+  const btnView = document.getElementById("btnViewPdf");
+  if(btnView){
+    btnView.addEventListener("click", async ()=>{
+      const realInv = state.invoices.find(x=>x.id===inv.id);
+      if(!realInv) return;
+      await viewPdfByInvoice(realInv);
+    });
+  }
 
   document.getElementById("btnSaveInvoice").addEventListener("click", ()=>{
     const before = inv.id ? structuredClone(state.invoices.find(x=>x.id===inv.id)) : null;
@@ -532,14 +861,13 @@ function renderInvoiceForm(inv){
 
     if(!invoice_no) return alert("Falta Nº factura.");
     if(!Number.isFinite(amount) || amount<=0) return alert("Importe inválido.");
-    // unique invoice_no
+
     const dup = state.invoices.find(x=>x.invoice_no===invoice_no && x.id!==inv.id);
     if(dup) return alert("Ya existe una factura con ese Nº.");
 
     const client_id = document.getElementById("i_client").value || null;
     const mandatePick = document.getElementById("i_mandate").value || null;
 
-    // si no eligió mandato, usar activo del cliente
     let mandate_id = mandatePick;
     if(client_id && !mandate_id){
       const active = state.mandates.find(m=>m.client_id===client_id && m.is_active);
@@ -547,6 +875,7 @@ function renderInvoiceForm(inv){
     }
 
     const newInv = {
+      ...inv,
       id: inv.id || uid(),
       invoice_no,
       invoice_date: document.getElementById("i_date").value || today(),
@@ -560,11 +889,22 @@ function renderInvoiceForm(inv){
       notes: document.getElementById("i_notes").value.trim(),
       created_at: inv.id ? (inv.created_at||nowISO()) : nowISO(),
       updated_at: nowISO(),
+      pdf_id: inv.pdf_id || null,
+      pdf_name: inv.pdf_name || null,
+      pdf_text: inv.pdf_text || "",
+      extracted: inv.extracted || { invoice_no:"", date:"", amount:"", confidence:0, status:"MANUAL" }
     };
 
     const idx = state.invoices.findIndex(x=>x.id===newInv.id);
     if(idx>=0) state.invoices[idx]=newInv;
     else state.invoices.unshift(newInv);
+
+    // If user manually confirmed fields, upgrade status to OK if has pdf
+    if(newInv.pdf_id){
+      const ok = !!(newInv.invoice_no && newInv.amount);
+      newInv.extracted = newInv.extracted || {};
+      newInv.extracted.status = ok ? "OK" : (newInv.extracted.status || "EXTRACTED");
+    }
 
     audit("invoice", newInv.id, idx>=0?"update":"create", before, newInv);
 
@@ -574,30 +914,33 @@ function renderInvoiceForm(inv){
     renderBatches();
   });
 
-  const btnPaid = document.getElementById("btnMarkPaid");
-  if(btnPaid){
-    btnPaid.addEventListener("click", ()=>{
-      const i = state.invoices.find(x=>x.id===inv.id);
-      if(!i) return;
-      const before = structuredClone(i);
-      i.status = "PAID";
-      i.updated_at = nowISO();
-      audit("invoice", i.id, "status_change", before, i);
-      saveState();
-      renderInvoices();
-      renderBatches();
-    });
-  }
+  document.getElementById("btnMarkPaid").addEventListener("click", ()=>{
+    const i = state.invoices.find(x=>x.id===inv.id);
+    if(!i) return;
+    const before = structuredClone(i);
+    i.status = "PAID";
+    i.updated_at = nowISO();
+    audit("invoice", i.id, "status_change", before, i);
+    saveState();
+    renderInvoices();
+    renderBatches();
+  });
 
   const delBtn = document.getElementById("btnDeleteInvoice");
   if(delBtn){
-    delBtn.addEventListener("click", ()=>{
+    delBtn.addEventListener("click", async ()=>{
       if(!confirm("¿Eliminar factura?")) return;
       const before = structuredClone(state.invoices.find(x=>x.id===inv.id));
+
+      const realInv = state.invoices.find(x=>x.id===inv.id);
+      if(realInv?.pdf_id){
+        try { await deletePdfFile(realInv.pdf_id); } catch {}
+      }
+
       state.invoices = state.invoices.filter(x=>x.id!==inv.id);
-      // quitar de batchItems
       state.batchItems = state.batchItems.filter(bi=>bi.invoice_id!==inv.id);
       audit("invoice", inv.id, "delete", before, null);
+
       saveState();
       selectedInvoiceId = null;
       invoiceFormWrap.innerHTML = `<div class="muted">Selecciona una factura o crea una nueva.</div>`;
@@ -607,9 +950,50 @@ function renderInvoiceForm(inv){
   }
 }
 
-/* =========================
+/* Bulk upload */
+document.getElementById("bulkPdf").addEventListener("change", async (e)=>{
+  const files = [...(e.target.files||[])].filter(f => f.type==="application/pdf");
+  if(!files.length) return;
+  for(const f of files){
+    await createInvoiceFromPdf(f);
+  }
+  renderInvoices();
+  e.target.value = "";
+});
+
+/* Global dropzone area */
+const globalDrop = document.getElementById("globalPdfDrop");
+globalDrop.ondragover = (e)=>{ e.preventDefault(); globalDrop.classList.add("drag"); };
+globalDrop.ondragleave = ()=> globalDrop.classList.remove("drag");
+globalDrop.ondrop = async (e)=>{
+  e.preventDefault();
+  globalDrop.classList.remove("drag");
+  const files = [...e.dataTransfer.files].filter(f => f.type==="application/pdf");
+  if(!files.length) return;
+  for(const f of files){
+    await createInvoiceFromPdf(f);
+  }
+  renderInvoices();
+};
+
+/* Also allow dropping anywhere */
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", async e => {
+  // avoid interfering with internal dropzones (handled already)
+  const isInside = e.target?.closest?.("#pdfDrop, #globalPdfDrop");
+  if(isInside) return;
+  e.preventDefault();
+  const files = [...e.dataTransfer.files].filter(f => f.type==="application/pdf");
+  if(!files.length) return;
+  for(const f of files){
+    await createInvoiceFromPdf(f);
+  }
+  renderInvoices();
+});
+
+/* ==========================================================
    REMESAS
-========================= */
+========================================================== */
 const batchList = document.getElementById("batchList");
 const batchWrap = document.getElementById("batchWrap");
 
@@ -644,14 +1028,44 @@ function renderBatches(){
     });
   });
 
-  if(selectedBatchId){
-    renderBatchEditor(selectedBatchId);
-  }
+  if(selectedBatchId) renderBatchEditor(selectedBatchId);
+}
+
+function validateInvoicesForBatch(invoices, scheme){
+  const probs = [];
+  invoices.forEach(inv=>{
+    if(inv.status!=="PENDING") probs.push(`${inv.invoice_no}: no está pendiente`);
+    const client = state.clients.find(c=>c.id===inv.client_id);
+    if(!client) probs.push(`${inv.invoice_no}: sin cliente`);
+    else {
+      if(!client.iban) probs.push(`${inv.invoice_no}: cliente sin IBAN`);
+      else if(!isValidIban(client.iban)) probs.push(`${inv.invoice_no}: IBAN cliente inválido`);
+    }
+    const mandate = state.mandates.find(m=>m.id===inv.mandate_id);
+    if(!mandate) probs.push(`${inv.invoice_no}: sin mandato asociado`);
+    else {
+      if(!mandate.is_active) probs.push(`${inv.invoice_no}: mandato no activo`);
+      if(mandate.scheme !== scheme) probs.push(`${inv.invoice_no}: mandato ${mandate.scheme} pero remesa ${scheme}`);
+      if(!mandate.mandate_id) probs.push(`${inv.invoice_no}: mandato sin MandateID`);
+      if(!mandate.signed_at) probs.push(`${inv.invoice_no}: mandato sin fecha firma`);
+    }
+  });
+  return probs;
+}
+
+function validateBatchReady(batch, invoices){
+  const probs = [];
+  if(!state.config.creditorName) probs.push("Falta Nombre del acreedor (Ajustes).");
+  if(!state.config.creditorIban) probs.push("Falta IBAN del acreedor (Ajustes).");
+  if(state.config.creditorIban && !isValidIban(state.config.creditorIban)) probs.push("IBAN del acreedor inválido.");
+  if(!state.config.creditorCI) probs.push("Falta Creditor Identifier (CI) (Ajustes).");
+  if(!batch.collection_date) probs.push("Falta fecha de cargo.");
+  probs.push(...validateInvoicesForBatch(invoices, batch.scheme));
+  return probs;
 }
 
 function renderBatchEditor(batchId){
   if(!batchId){
-    // crear remesa
     const pending = state.invoices.filter(i=>i.status==="PENDING");
     batchWrap.innerHTML = `
       <div class="row">
@@ -678,12 +1092,12 @@ function renderBatchEditor(batchId){
       </div>
 
       <p class="muted small">
-        Solo aparecen facturas en estado <b>Pendiente</b>. Al crear remesa pasan a <b>En remesa</b>.
+        Solo aparecen facturas en estado <b>Pendiente</b>.
       </p>
     `;
 
     const pick = document.getElementById("b_inv_pick");
-    const items = pending
+    pick.innerHTML = pending
       .slice()
       .sort((a,b)=> (a.collection_date||"").localeCompare(b.collection_date||"") || (a.invoice_date||"").localeCompare(b.invoice_date||""))
       .map(inv=>{
@@ -691,14 +1105,13 @@ function renderBatchEditor(batchId){
         return `
           <label class="item" style="cursor:default; display:block">
             <div class="top">
-              <span><input type="checkbox" class="chk" data-id="${inv.id}" /> ${escXml(inv.invoice_no)}</span>
+              <span><input type="checkbox" class="chk" data-id="${inv.id}" /> ${escXml(inv.invoice_no||"(sin nº)")}</span>
               <span class="badge warn">${money(inv.amount)}</span>
             </div>
-            <div class="sub">${escXml(inv.collection_date||"")} · ${escXml(inv.tag||"")} · ${escXml(client?.name||"—")}</div>
+            <div class="sub">${escXml(inv.collection_date||"")} · ${escXml(inv.tag||"")} · ${escXml(client?.name||"—")} ${pdfStatusBadge(inv)}</div>
           </label>
         `;
-      }).join("");
-    pick.innerHTML = items || `<div class="muted small">No hay facturas pendientes.</div>`;
+      }).join("") || `<div class="muted small">No hay facturas pendientes.</div>`;
 
     document.getElementById("btnCreateBatch").addEventListener("click", ()=>{
       const scheme = document.getElementById("b_scheme").value;
@@ -707,7 +1120,6 @@ function renderBatchEditor(batchId){
 
       if(selected.length===0) return alert("Selecciona al menos 1 factura.");
 
-      // validar facturas
       const invs = selected.map(id => state.invoices.find(i=>i.id===id)).filter(Boolean);
       const problems = validateInvoicesForBatch(invs, scheme);
       if(problems.length){
@@ -726,10 +1138,8 @@ function renderBatchEditor(batchId){
         total_amount: Number(invs.reduce((s,i)=>s+Number(i.amount||0),0).toFixed(2)),
         xml_text: ""
       };
-
       state.batches.unshift(batch);
 
-      // add items + update invoice status
       invs.forEach(inv=>{
         const before = structuredClone(inv);
         inv.status = "IN_BATCH";
@@ -740,7 +1150,7 @@ function renderBatchEditor(batchId){
           id: uid(),
           batch_id: batch.id,
           invoice_id: inv.id,
-          end_to_end_id: inv.invoice_no,
+          end_to_end_id: inv.invoice_no || inv.id,
           amount: inv.amount
         });
       });
@@ -791,13 +1201,14 @@ function renderBatchEditor(batchId){
       <div class="list" style="max-height:260px">
         ${invs.map(inv=>{
           const client = state.clients.find(c=>c.id===inv.client_id);
+          const mandate = state.mandates.find(m=>m.id===inv.mandate_id);
           return `
             <div class="item" style="cursor:default">
               <div class="top">
-                <span>${escXml(inv.invoice_no)}</span>
+                <span>${escXml(inv.invoice_no||"(sin nº)")}</span>
                 <span class="badge ok">${money(inv.amount)}</span>
               </div>
-              <div class="sub">${escXml(client?.name||"—")} · ${escXml(inv.tag||"")} · cargo ${escXml(inv.collection_date||batch.collection_date)}</div>
+              <div class="sub">${escXml(client?.name||"—")} · ${escXml(inv.tag||"")} · cargo ${escXml(inv.collection_date||batch.collection_date)} · Seq ${escXml(mandate?.sequence_default||"RCUR")} ${pdfStatusBadge(inv)}</div>
             </div>
           `;
         }).join("")}
@@ -813,12 +1224,8 @@ function renderBatchEditor(batchId){
     <div class="sep"></div>
     <div class="field">
       <label>Vista XML (solo lectura)</label>
-      <textarea class="input" id="xmlView" rows="10" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;" readonly>${escXml(batch.xml_text||"")}</textarea>
+      <textarea class="input mono" id="xmlView" rows="10" readonly>${escXml(batch.xml_text||"")}</textarea>
     </div>
-
-    <p class="muted small">
-      Si tu banco pide campos extra (versión exacta, IDs, BIC obligatorio, etc.), lo adaptamos cuando me des tus datos.
-    </p>
   `;
 
   document.getElementById("btnGenXml").addEventListener("click", ()=>{
@@ -845,7 +1252,6 @@ function renderBatchEditor(batchId){
   document.getElementById("btnDeleteBatch").addEventListener("click", ()=>{
     if(!confirm("¿Eliminar remesa? Las facturas volverán a Pendiente.")) return;
 
-    // revert invoices
     const invIds = state.batchItems.filter(x=>x.batch_id===batch.id).map(x=>x.invoice_id);
     invIds.forEach(id=>{
       const inv = state.invoices.find(i=>i.id===id);
@@ -870,184 +1276,121 @@ function renderBatchEditor(batchId){
   });
 }
 
-function validateInvoicesForBatch(invoices, scheme){
-  const probs = [];
-  invoices.forEach(inv=>{
-    if(inv.status!=="PENDING") probs.push(`${inv.invoice_no}: no está pendiente`);
-    const client = state.clients.find(c=>c.id===inv.client_id);
-    if(!client) probs.push(`${inv.invoice_no}: sin cliente`);
-    else {
-      if(!client.iban) probs.push(`${inv.invoice_no}: cliente sin IBAN`);
-      else if(!isValidIban(client.iban)) probs.push(`${inv.invoice_no}: IBAN cliente inválido`);
-    }
-    const mandate = state.mandates.find(m=>m.id===inv.mandate_id);
-    if(!mandate) probs.push(`${inv.invoice_no}: sin mandato asociado (crea/activa un mandato)`);
-    else {
-      if(!mandate.is_active) probs.push(`${inv.invoice_no}: mandato no activo`);
-      if(mandate.scheme !== scheme) probs.push(`${inv.invoice_no}: mandato ${mandate.scheme} pero remesa ${scheme}`);
-      if(!mandate.mandate_id) probs.push(`${inv.invoice_no}: mandato sin MandateID`);
-      if(!mandate.signed_at) probs.push(`${inv.invoice_no}: mandato sin fecha firma`);
-    }
-  });
-  return probs;
-}
-
-function validateBatchReady(batch, invoices){
-  const probs = [];
-  if(!state.config.creditorName) probs.push("Falta Nombre del acreedor (Ajustes).");
-  if(!state.config.creditorIban) probs.push("Falta IBAN del acreedor (Ajustes).");
-  if(state.config.creditorIban && !isValidIban(state.config.creditorIban)) probs.push("IBAN del acreedor inválido.");
-  if(!state.config.creditorCI) probs.push("Falta Creditor Identifier (CI) (Ajustes).");
-  if(!batch.collection_date) probs.push("Falta fecha de cargo.");
-  // validar facturas contra batch.scheme
-  probs.push(...validateInvoicesForBatch(invoices, batch.scheme));
-  return probs;
-}
-
-/* =========================
-   PAIN.008 (XML)
-   - Versión base "pain.008.001.02" (muy común)
-   - Puede requerir ajustes por banco
-========================= */
+/* ---------- pain.008 builder (group by SeqTp) ---------- */
 function buildPain008(batch, invoices){
   const cfg = state.config;
 
   const msgId = batch.batch_no;
   const creDtTm = new Date().toISOString().slice(0,19);
-  const nbTxs = String(invoices.length);
-  const ctrlSum = Number(invoices.reduce((s,i)=>s+Number(i.amount||0),0)).toFixed(2);
   const reqCollDt = batch.collection_date;
 
-  // Creditor info
   const cdtrNm = cfg.creditorName;
   const cdtrIban = normalizeIban(cfg.creditorIban);
   const cdtrCI = cfg.creditorCI;
   const cdtrBic = (cfg.creditorBic||"").trim();
-  const pmtInfId = `PMT-${msgId}`;
+  const lclInstrm = batch.scheme === "B2B" ? "B2B" : "CORE";
 
-  // Sequence type por factura: por defecto la del mandato
-  // Si quieres lógica FRST/RCUR automática por histórico, lo hacemos luego.
-  const txs = invoices.map(inv=>{
-    const client = state.clients.find(c=>c.id===inv.client_id);
+  const groups = new Map(); // seqTp -> invoices[]
+  for(const inv of invoices){
     const mandate = state.mandates.find(m=>m.id===inv.mandate_id);
+    const seq = mandate?.sequence_default || "RCUR";
+    if(!groups.has(seq)) groups.set(seq, []);
+    groups.get(seq).push(inv);
+  }
 
-    const dbtrNm = client?.name || "";
-    const dbtrIban = normalizeIban(client?.iban || "");
-    const mndtId = mandate?.mandate_id || "";
-    const dtOfSgntr = (mandate?.signed_at || today()).slice(0,10);
-    const seqTp = mandate?.sequence_default || "RCUR";
+  const allNbTxs = String(invoices.length);
+  const allCtrlSum = Number(invoices.reduce((s,i)=>s+Number(i.amount||0),0)).toFixed(2);
 
-    const endToEndId = inv.invoice_no;
-    const ustrd = `Factura ${inv.invoice_no}${inv.tag ? " | "+inv.tag : ""}`;
+  const cdtrAgt = cdtrBic ? `
+      <CdtrAgt><FinInstnId><BIC>${escXml(cdtrBic)}</BIC></FinInstnId></CdtrAgt>
+  `.trim() : `
+      <CdtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></CdtrAgt>
+  `.trim();
+
+  const pmtInfos = [...groups.entries()].map(([seqTp, invs], idx)=>{
+    const nbTxs = String(invs.length);
+    const ctrlSum = Number(invs.reduce((s,i)=>s+Number(i.amount||0),0)).toFixed(2);
+    const pmtInfId = `PMT-${msgId}-${seqTp}-${idx+1}`;
+
+    const txs = invs.map(inv=>{
+      const client = state.clients.find(c=>c.id===inv.client_id);
+      const mandate = state.mandates.find(m=>m.id===inv.mandate_id);
+
+      const dbtrNm = client?.name || "";
+      const dbtrIban = normalizeIban(client?.iban || "");
+      const mndtId = mandate?.mandate_id || "";
+      const dtOfSgntr = (mandate?.signed_at || today()).slice(0,10);
+
+      const endToEndId = inv.invoice_no || inv.id;
+      const ustrd = `Factura ${inv.invoice_no || inv.id}${inv.tag ? " | "+inv.tag : ""}`;
+
+      return `
+        <DrctDbtTxInf>
+          <PmtId><EndToEndId>${escXml(endToEndId)}</EndToEndId></PmtId>
+          <InstdAmt Ccy="EUR">${Number(inv.amount).toFixed(2)}</InstdAmt>
+          <DrctDbtTx>
+            <MndtRltdInf>
+              <MndtId>${escXml(mndtId)}</MndtId>
+              <DtOfSgntr>${escXml(dtOfSgntr)}</DtOfSgntr>
+              <AmdmntInd>false</AmdmntInd>
+            </MndtRltdInf>
+          </DrctDbtTx>
+          <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></DbtrAgt>
+          <Dbtr><Nm>${escXml(dbtrNm)}</Nm></Dbtr>
+          <DbtrAcct><Id><IBAN>${escXml(dbtrIban)}</IBAN></Id></DbtrAcct>
+          <RmtInf><Ustrd>${escXml(ustrd)}</Ustrd></RmtInf>
+        </DrctDbtTxInf>
+      `.trim();
+    }).join("\n");
 
     return `
-      <DrctDbtTxInf>
-        <PmtId>
-          <EndToEndId>${escXml(endToEndId)}</EndToEndId>
-        </PmtId>
-        <InstdAmt Ccy="EUR">${Number(inv.amount).toFixed(2)}</InstdAmt>
-        <DrctDbtTx>
-          <MndtRltdInf>
-            <MndtId>${escXml(mndtId)}</MndtId>
-            <DtOfSgntr>${escXml(dtOfSgntr)}</DtOfSgntr>
-            <AmdmntInd>false</AmdmntInd>
-          </MndtRltdInf>
-        </DrctDbtTx>
-        <DbtrAgt>
-          <FinInstnId>
-            <Othr><Id>NOTPROVIDED</Id></Othr>
-          </FinInstnId>
-        </DbtrAgt>
-        <Dbtr>
-          <Nm>${escXml(dbtrNm)}</Nm>
-        </Dbtr>
-        <DbtrAcct>
-          <Id><IBAN>${escXml(dbtrIban)}</IBAN></Id>
-        </DbtrAcct>
-        <Purp><Prtry>GDDS</Prtry></Purp>
-        <RmtInf><Ustrd>${escXml(ustrd)}</Ustrd></RmtInf>
+      <PmtInf>
+        <PmtInfId>${escXml(pmtInfId)}</PmtInfId>
+        <PmtMtd>DD</PmtMtd>
+        <NbOfTxs>${escXml(nbTxs)}</NbOfTxs>
+        <CtrlSum>${escXml(ctrlSum)}</CtrlSum>
         <PmtTpInf>
           <SvcLvl><Cd>SEPA</Cd></SvcLvl>
-          <LclInstrm><Cd>CORE</Cd></LclInstrm>
+          <LclInstrm><Cd>${escXml(lclInstrm)}</Cd></LclInstrm>
           <SeqTp>${escXml(seqTp)}</SeqTp>
         </PmtTpInf>
-      </DrctDbtTxInf>
+        <ReqdColltnDt>${escXml(reqCollDt)}</ReqdColltnDt>
+        <Cdtr><Nm>${escXml(cdtrNm)}</Nm></Cdtr>
+        ${cdtrAgt}
+        <CdtrAcct><Id><IBAN>${escXml(cdtrIban)}</IBAN></Id></CdtrAcct>
+        <CdtrSchmeId>
+          <Id>
+            <PrvtId>
+              <Othr>
+                <Id>${escXml(cdtrCI)}</Id>
+                <SchmeNm><Prtry>SEPA</Prtry></SchmeNm>
+              </Othr>
+            </PrvtId>
+          </Id>
+        </CdtrSchmeId>
+        ${txs}
+      </PmtInf>
     `.trim();
   }).join("\n");
 
-  // Nota: Aquí el LclInstrm está como CORE. Si batch.scheme=B2B, lo ponemos B2B.
-  const lclInstrm = batch.scheme === "B2B" ? "B2B" : "CORE";
-
-  // Si el banco exige BIC del acreedor, metemos CdtrAgt/BIC
-  const cdtrAgt = cdtrBic ? `
-    <CdtrAgt>
-      <FinInstnId><BIC>${escXml(cdtrBic)}</BIC></FinInstnId>
-    </CdtrAgt>
-  `.trim() : `
-    <CdtrAgt>
-      <FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>
-    </CdtrAgt>
-  `.trim();
-
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02">
   <CstmrDrctDbtInitn>
     <GrpHdr>
       <MsgId>${escXml(msgId)}</MsgId>
       <CreDtTm>${escXml(creDtTm)}</CreDtTm>
-      <NbOfTxs>${escXml(nbTxs)}</NbOfTxs>
-      <CtrlSum>${escXml(ctrlSum)}</CtrlSum>
-      <InitgPty>
-        <Nm>${escXml(cdtrNm)}</Nm>
-      </InitgPty>
+      <NbOfTxs>${escXml(allNbTxs)}</NbOfTxs>
+      <CtrlSum>${escXml(allCtrlSum)}</CtrlSum>
+      <InitgPty><Nm>${escXml(cdtrNm)}</Nm></InitgPty>
     </GrpHdr>
-
-    <PmtInf>
-      <PmtInfId>${escXml(pmtInfId)}</PmtInfId>
-      <PmtMtd>DD</PmtMtd>
-      <NbOfTxs>${escXml(nbTxs)}</NbOfTxs>
-      <CtrlSum>${escXml(ctrlSum)}</CtrlSum>
-
-      <PmtTpInf>
-        <SvcLvl><Cd>SEPA</Cd></SvcLvl>
-        <LclInstrm><Cd>${escXml(lclInstrm)}</Cd></LclInstrm>
-      </PmtTpInf>
-
-      <ReqdColltnDt>${escXml(reqCollDt)}</ReqdColltnDt>
-
-      <Cdtr>
-        <Nm>${escXml(cdtrNm)}</Nm>
-      </Cdtr>
-
-      ${cdtrAgt}
-
-      <CdtrAcct>
-        <Id><IBAN>${escXml(cdtrIban)}</IBAN></Id>
-      </CdtrAcct>
-
-      <CdtrSchmeId>
-        <Id>
-          <PrvtId>
-            <Othr>
-              <Id>${escXml(cdtrCI)}</Id>
-              <SchmeNm><Prtry>SEPA</Prtry></SchmeNm>
-            </Othr>
-          </PrvtId>
-        </Id>
-      </CdtrSchmeId>
-
-      ${txs}
-    </PmtInf>
+    ${pmtInfos}
   </CstmrDrctDbtInitn>
-</Document>
-`.trim();
-
-  return xml;
+</Document>`.trim();
 }
 
-/* =========================
+/* ==========================================================
    REPORTES
-========================= */
+========================================================== */
 document.getElementById("btnRefreshReports").addEventListener("click", renderReports);
 
 function renderReports(){
@@ -1065,7 +1408,6 @@ function renderReports(){
     <div class="kpi"><div class="label">Devuelta</div><div class="value">${money(sum(returned))}</div></div>
   `;
 
-  // totales por tag (pendiente)
   const byTag = new Map();
   pending.forEach(i=>{
     const k = (i.tag||"(sin tag)").trim() || "(sin tag)";
@@ -1078,7 +1420,6 @@ function renderReports(){
     </div>
   `).join("") || `<div class="muted small">Sin datos.</div>`;
 
-  // aging
   const todayD = new Date(today());
   const buckets = [
     {name:"0–7 días", min:0, max:7, total:0},
@@ -1099,9 +1440,9 @@ function renderReports(){
   `).join("");
 }
 
-/* =========================
+/* ==========================================================
    AJUSTES + BACKUP
-========================= */
+========================================================== */
 document.getElementById("btnSaveConfig").addEventListener("click", ()=>{
   const before = structuredClone(state.config);
 
@@ -1113,7 +1454,12 @@ document.getElementById("btnSaveConfig").addEventListener("click", ()=>{
 
   audit("config", "global", "update", before, structuredClone(state.config));
   saveState();
-  alert("Ajustes guardados.");
+
+  if(state.config.creditorIban && !isValidIban(state.config.creditorIban)){
+    alert("Ajustes guardados. OJO: IBAN acreedor inválido (checksum).");
+  } else {
+    alert("Ajustes guardados.");
+  }
 });
 
 function renderConfig(){
@@ -1127,7 +1473,7 @@ function renderConfig(){
 document.getElementById("btnExport").addEventListener("click", ()=>{
   const payload = {
     exported_at: nowISO(),
-    app: "INV-SEPA-LOCAL-V1",
+    app: "INV-SEPA-LOCAL-V2-FULL",
     data: state
   };
   downloadText(`backup-facturas-sepa-${today()}.json`, JSON.stringify(payload, null, 2), "application/json");
@@ -1145,7 +1491,7 @@ document.getElementById("importFile").addEventListener("change", async (e)=>{
 
     const before = structuredClone(state);
     state = data;
-    audit("system", "import", "import_backup", before, {imported_at: nowISO()});
+    audit("system", "import", "import_backup", before, { imported_at: nowISO() });
     saveState();
     selectedClientId = null;
     selectedInvoiceId = null;
@@ -1160,14 +1506,16 @@ document.getElementById("importFile").addEventListener("change", async (e)=>{
 });
 
 document.getElementById("btnReset").addEventListener("click", ()=>{
-  if(!confirm("¿Seguro? Esto borra TODO del navegador.")) return;
+  if(!confirm("¿Seguro? Esto borra TODO del navegador (datos + PDFs).")) return;
   localStorage.removeItem(LS_KEY);
+  // también borrar PDF DB (opcional)
+  try { indexedDB.deleteDatabase(PDF_DB); } catch {}
   location.reload();
 });
 
 function renderAudit(){
   const wrap = document.getElementById("auditList");
-  const rows = state.audit.slice(0, 60);
+  const rows = state.audit.slice(0, 80);
   wrap.innerHTML = rows.map(a=>`
     <div class="item" style="cursor:default">
       <div class="top">
@@ -1179,9 +1527,9 @@ function renderAudit(){
   `).join("") || `<div class="muted small">Sin eventos aún.</div>`;
 }
 
-/* =========================
+/* ==========================================================
    INIT
-========================= */
+========================================================== */
 function initRender(){
   renderConfig();
   renderClients();
@@ -1190,11 +1538,5 @@ function initRender(){
   renderReports();
   renderAudit();
 }
-
-// Cargar ajustes al abrir Ajustes
-document.querySelector('[data-tab="ajustes"]').addEventListener("click", ()=>{
-  renderConfig();
-  renderAudit();
-});
 
 initRender();
