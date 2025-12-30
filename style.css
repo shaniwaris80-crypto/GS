@@ -112,6 +112,7 @@ h3{font-size:14px;color:var(--muted);font-weight:700;margin:0 0 10px}
 .gap{gap:10px}
 .space{justify-content:space-between}
 .wrap{flex-wrap:wrap}
+
 .field{flex:1;display:flex;flex-direction:column;gap:6px;min-width:220px}
 label{font-size:12px;color:var(--muted)}
 
@@ -184,7 +185,6 @@ label{font-size:12px;color:var(--muted)}
 
 /* Actions */
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
-.actions .btn{flex:0 0 auto}
 
 /* Summary */
 .summary{display:grid;gap:10px}
