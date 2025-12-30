@@ -2,222 +2,226 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Facturas + Remesas SEPA (Local)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ARSLAN — Facturación Diaria (3 Tiendas)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">€</div>
-      <div>
-        <div class="title">Facturas + Remesas SEPA</div>
-        <div class="subtitle">Local (sin servidor) — PDFs + Extractor + XML</div>
+  <!-- LOGIN -->
+  <div id="loginView" class="view">
+    <div class="card login-card">
+      <div class="brand">
+        <div class="logo">🥝</div>
+        <div>
+          <div class="brand-title">ARSLAN</div>
+          <div class="brand-sub">Facturación diaria — 3 tiendas</div>
+        </div>
+      </div>
+
+      <h1>Entrar</h1>
+      <p class="muted">Introduce tu PIN para acceder.</p>
+
+      <div class="row gap">
+        <input id="pinInput" inputmode="numeric" maxlength="8" class="input pin" placeholder="PIN" />
+        <button id="btnLogin" class="btn primary">Entrar</button>
+      </div>
+
+      <div id="loginMsg" class="msg"></div>
+
+      <div class="hr"></div>
+
+      <div class="row space">
+        <div class="muted small">
+          PIN por defecto: <b>1234</b> (puedes cambiarlo dentro).
+        </div>
+        <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
       </div>
     </div>
+  </div>
 
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-tab="clientes">Clientes</button>
-      <button class="tab" data-tab="facturas">Facturas</button>
-      <button class="tab" data-tab="remesas">Remesas</button>
-      <button class="tab" data-tab="reportes">Reportes</button>
-      <button class="tab" data-tab="ajustes">Ajustes</button>
-    </nav>
-  </header>
-
-  <main class="container">
-    <!-- CLIENTES -->
-    <section class="panel active" id="tab-clientes">
-      <div class="panel-head">
-        <h2>Clientes (Deudores)</h2>
-        <div class="panel-actions">
-          <button class="btn" id="btnNewClient">+ Nuevo cliente</button>
-        </div>
+  <!-- APP -->
+  <div id="appView" class="view hidden">
+    <header class="topbar">
+      <div class="left">
+        <div class="badge">🥝 ARSLAN</div>
+        <div class="title">Facturación Diaria</div>
       </div>
 
-      <div class="grid two">
-        <div class="card">
-          <h3>Listado</h3>
-          <input class="input" id="clientSearch" placeholder="Buscar cliente..." />
-          <div class="list" id="clientList"></div>
-        </div>
-
-        <div class="card">
-          <h3>Cliente</h3>
-          <div id="clientFormWrap" class="muted">Selecciona un cliente o crea uno nuevo.</div>
-        </div>
+      <div class="right">
+        <button id="btnTheme" class="btn ghost">🌙/☀️</button>
+        <button id="btnBackup" class="btn ghost">Exportar</button>
+        <label class="btn ghost file-label">
+          Importar
+          <input id="importFile" type="file" accept="application/json" hidden />
+        </label>
+        <button id="btnLogout" class="btn danger">Salir</button>
       </div>
-    </section>
+    </header>
 
-    <!-- FACTURAS -->
-    <section class="panel" id="tab-facturas">
-      <div class="panel-head">
-        <h2>Facturas</h2>
-        <div class="panel-actions">
-          <button class="btn" id="btnNewInvoice">+ Nueva factura</button>
-
-          <label class="btn ghost" style="display:inline-flex; align-items:center; gap:8px;">
-            📁 Subir PDFs
-            <input type="file" id="bulkPdf" multiple accept="application/pdf" hidden />
-          </label>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:14px;">
-        <div class="dropzone" id="globalPdfDrop">
-          🧲 Arrastra aquí uno o varios PDFs para crear facturas automáticamente
-          <div class="muted small" style="margin-top:6px;">(También funciona arrastrando PDFs a cualquier parte de la página)</div>
-        </div>
-      </div>
-
-      <div class="grid two">
+    <main class="container">
+      <section class="grid">
+        <!-- ENTRADA DIARIA -->
         <div class="card">
-          <h3>Filtros</h3>
-          <div class="row">
-            <div class="field">
-              <label>Buscar</label>
-              <input class="input" id="invoiceSearch" placeholder="Nº factura, tag, cliente o texto del PDF..." />
-            </div>
-            <div class="field">
-              <label>Estado</label>
-              <select class="input" id="invoiceStatusFilter">
-                <option value="">Todos</option>
-                <option value="PENDING">Pendiente</option>
-                <option value="IN_BATCH">En remesa</option>
-                <option value="PAID">Cobrada</option>
-                <option value="RETURNED">Devuelta</option>
-                <option value="CANCELLED">Anulada</option>
-              </select>
-            </div>
-          </div>
-          <div class="list" id="invoiceList"></div>
-        </div>
-
-        <div class="card">
-          <h3>Factura</h3>
-          <div id="invoiceFormWrap" class="muted">Selecciona una factura o crea una nueva.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- REMESAS -->
-    <section class="panel" id="tab-remesas">
-      <div class="panel-head">
-        <h2>Remesas (SEPA)</h2>
-        <div class="panel-actions">
-          <button class="btn" id="btnNewBatch">+ Crear remesa</button>
-        </div>
-      </div>
-
-      <div class="grid two">
-        <div class="card">
-          <h3>Remesas creadas</h3>
-          <div class="list" id="batchList"></div>
-        </div>
-
-        <div class="card">
-          <h3>Crear / Ver remesa</h3>
-          <div id="batchWrap" class="muted">Crea una remesa para generar el XML.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- REPORTES -->
-    <section class="panel" id="tab-reportes">
-      <div class="panel-head">
-        <h2>Reportes</h2>
-        <div class="panel-actions">
-          <button class="btn" id="btnRefreshReports">Actualizar</button>
-        </div>
-      </div>
-
-      <div class="grid three">
-        <div class="card">
-          <h3>Resumen</h3>
-          <div class="kpis" id="kpis"></div>
-        </div>
-        <div class="card">
-          <h3>Totales por tag (Pendiente)</h3>
-          <div class="list" id="byTag"></div>
-        </div>
-        <div class="card">
-          <h3>Aging (Pendiente)</h3>
-          <div class="list" id="aging"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- AJUSTES -->
-    <section class="panel" id="tab-ajustes">
-      <div class="panel-head">
-        <h2>Ajustes</h2>
-      </div>
-
-      <div class="grid two">
-        <div class="card">
-          <h3>Datos del acreedor (tú)</h3>
-          <div class="row">
-            <div class="field">
-              <label>Nombre acreedor</label>
-              <input class="input" id="cfgCreditorName" placeholder="Ej. Frutería X" />
-            </div>
-            <div class="field">
-              <label>IBAN acreedor</label>
-              <input class="input" id="cfgCreditorIban" placeholder="ES..." />
-            </div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label>Creditor Identifier (CI)</label>
-              <input class="input" id="cfgCreditorCI" placeholder="Ej. ES12ZZZ..." />
-            </div>
-            <div class="field">
-              <label>Creditor BIC (opcional)</label>
-              <input class="input" id="cfgCreditorBic" placeholder="Ej. CAIXESBBXXX" />
-            </div>
-          </div>
-          <div class="row">
-            <div class="field">
-              <label>Dirección / ciudad (opcional)</label>
-              <input class="input" id="cfgCreditorAddr" placeholder="Burgos, España" />
-            </div>
+          <div class="card-head">
+            <h2>Entrada diaria</h2>
+            <div class="muted small">Guarda ventas por tienda (efectivo + tarjeta).</div>
           </div>
 
-          <div class="panel-actions">
-            <button class="btn" id="btnSaveConfig">Guardar ajustes</button>
+          <div class="form">
+            <div class="row gap">
+              <div class="field">
+                <label>Fecha</label>
+                <input id="dateInput" type="date" class="input" />
+              </div>
+              <div class="field">
+                <label>Tienda</label>
+                <select id="storeInput" class="input">
+                  <option value="san_pablo">San Pablo</option>
+                  <option value="san_lesmes">San Lesmes</option>
+                  <option value="santiago">Santiago</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row gap">
+              <div class="field">
+                <label>Efectivo (€)</label>
+                <input id="cashInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Tarjeta (€)</label>
+                <input id="cardInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="row gap">
+              <button id="btnSave" class="btn primary">Guardar / Actualizar</button>
+              <button id="btnClear" class="btn">Limpiar</button>
+              <button id="btnDelete" class="btn danger ghost">Borrar registro</button>
+            </div>
+
+            <div id="saveMsg" class="msg"></div>
           </div>
-          <p class="muted small">Tip: sin CI, el XML SEPA normalmente no lo acepta el banco.</p>
         </div>
 
+        <!-- RESUMEN HOY -->
         <div class="card">
-          <h3>Backup & Restore</h3>
-          <div class="panel-actions">
-            <button class="btn" id="btnExport">Exportar backup (JSON)</button>
-            <label class="btn ghost" for="importFile">Importar backup</label>
-            <input id="importFile" type="file" accept="application/json" hidden />
+          <div class="card-head">
+            <h2>Resumen del día</h2>
+            <div class="muted small">Totales por tienda + global (efectivo/tarjeta/total).</div>
           </div>
 
-          <hr class="sep" />
+          <div class="summary">
+            <div class="pill">
+              <div class="k">San Pablo</div>
+              <div class="v" id="sumSP">—</div>
+              <div class="s" id="sumSP2">—</div>
+            </div>
+            <div class="pill">
+              <div class="k">San Lesmes</div>
+              <div class="v" id="sumSL">—</div>
+              <div class="s" id="sumSL2">—</div>
+            </div>
+            <div class="pill">
+              <div class="k">Santiago</div>
+              <div class="v" id="sumSA">—</div>
+              <div class="s" id="sumSA2">—</div>
+            </div>
 
-          <h3>Trazabilidad (audit log)</h3>
-          <div class="list" id="auditList"></div>
+            <div class="hr"></div>
 
-          <hr class="sep" />
-          <button class="btn danger" id="btnReset">Borrar TODO (local)</button>
-          <p class="muted small">Esto elimina datos del navegador. Haz backup antes.</p>
+            <div class="pill big">
+              <div class="k">GLOBAL (3 tiendas)</div>
+              <div class="v" id="sumGlobal">—</div>
+              <div class="s" id="sumGlobal2">—</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
 
-  <footer class="footer">
-    <span class="muted">Local • Offline • Datos en tu navegador (localStorage + IndexedDB)</span>
-  </footer>
+      <!-- REPORTES -->
+      <section class="card">
+        <div class="card-head row space">
+          <div>
+            <h2>Reportes & Rendimiento</h2>
+            <div class="muted small">Diario / Semanal / Mensual — por tienda y global.</div>
+          </div>
 
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <!-- Tesseract OCR -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+          <div class="row gap">
+            <select id="reportType" class="input">
+              <option value="daily">Diario</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensual</option>
+            </select>
+
+            <select id="reportStore" class="input">
+              <option value="global">Global (3 tiendas)</option>
+              <option value="san_pablo">San Pablo</option>
+              <option value="san_lesmes">San Lesmes</option>
+              <option value="santiago">Santiago</option>
+            </select>
+
+            <button id="btnRefresh" class="btn">Actualizar</button>
+          </div>
+        </div>
+
+        <div class="report-grid">
+          <div class="kpi">
+            <div class="k">Efectivo</div>
+            <div class="v" id="kpiCash">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Tarjeta</div>
+            <div class="v" id="kpiCard">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">TOTAL</div>
+            <div class="v" id="kpiTotal">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Promedio/día</div>
+            <div class="v" id="kpiAvg">—</div>
+          </div>
+        </div>
+
+        <div class="charts">
+          <div class="chart-card">
+            <h3>Serie (Total)</h3>
+            <canvas id="chartTotal" height="120"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>Mix (Efectivo vs Tarjeta)</h3>
+            <canvas id="chartMix" height="120"></canvas>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="table-wrap">
+          <table class="table" id="reportTable">
+            <thead>
+              <tr>
+                <th>Periodo</th>
+                <th>Efectivo</th>
+                <th>Tarjeta</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="muted small" id="tableHint"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer muted small">
+      Guardado local (localStorage). Usa “Exportar” para hacer copia.
+    </footer>
+  </div>
 
   <script src="app.js"></script>
 </body>
