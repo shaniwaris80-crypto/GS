@@ -4,13 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ARSLAN — Facturación Diaria (3 Tiendas)</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
+
   <!-- LOGIN -->
   <div id="loginView" class="view">
     <div class="card login-card">
@@ -25,7 +28,7 @@
       <h1>Entrar</h1>
       <p class="muted">Introduce tu PIN para acceder.</p>
 
-      <div class="row gap">
+      <div class="row gap wrap">
         <input id="pinInput" inputmode="numeric" maxlength="8" class="input pin" placeholder="PIN" />
         <button id="btnLogin" class="btn primary">Entrar</button>
       </div>
@@ -34,9 +37,9 @@
 
       <div class="hr"></div>
 
-      <div class="row space">
+      <div class="row space wrap">
         <div class="muted small">
-          PIN por defecto: <b>1234</b> (puedes cambiarlo dentro).
+          PIN por defecto: <b>1234</b>
         </div>
         <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
       </div>
@@ -44,14 +47,17 @@
   </div>
 
   <!-- APP -->
-  <div id="appView" class="view hidden">
+  <div id="appView" class="view hidden app-view">
     <header class="topbar">
-      <div class="left">
+      <div class="topbar-left">
         <div class="badge">🥝 ARSLAN</div>
-        <div class="title">Facturación Diaria</div>
+        <div>
+          <div class="title">Facturación Diaria</div>
+          <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
+        </div>
       </div>
 
-      <div class="right">
+      <div class="topbar-right">
         <button id="btnTheme" class="btn ghost">🌙/☀️</button>
         <button id="btnBackup" class="btn ghost">Exportar</button>
         <label class="btn ghost file-label">
@@ -63,8 +69,9 @@
     </header>
 
     <main class="container">
-      <section class="grid">
-        <!-- ENTRADA DIARIA -->
+      <!-- GRID: Entrada + Resumen día -->
+      <section class="grid-2">
+        <!-- ENTRADA -->
         <div class="card">
           <div class="card-head">
             <h2>Entrada diaria</h2>
@@ -72,11 +79,12 @@
           </div>
 
           <div class="form">
-            <div class="row gap">
+            <div class="row gap wrap">
               <div class="field">
                 <label>Fecha</label>
                 <input id="dateInput" type="date" class="input" />
               </div>
+
               <div class="field">
                 <label>Tienda</label>
                 <select id="storeInput" class="input">
@@ -87,7 +95,7 @@
               </div>
             </div>
 
-            <div class="row gap">
+            <div class="row gap wrap">
               <div class="field">
                 <label>Efectivo (€)</label>
                 <input id="cashInput" class="input" inputmode="decimal" placeholder="0,00" />
@@ -98,17 +106,18 @@
               </div>
             </div>
 
-            <div class="row gap">
+            <div class="actions">
               <button id="btnSave" class="btn primary">Guardar / Actualizar</button>
               <button id="btnClear" class="btn">Limpiar</button>
-              <button id="btnDelete" class="btn danger ghost">Borrar registro</button>
+              <button id="btnDelete" class="btn danger ghost">Borrar</button>
+              <button id="btnWhatsAppDay" class="btn whatsapp">WhatsApp (día)</button>
             </div>
 
             <div id="saveMsg" class="msg"></div>
           </div>
         </div>
 
-        <!-- RESUMEN HOY -->
+        <!-- RESUMEN -->
         <div class="card">
           <div class="card-head">
             <h2>Resumen del día</h2>
@@ -121,11 +130,13 @@
               <div class="v" id="sumSP">—</div>
               <div class="s" id="sumSP2">—</div>
             </div>
+
             <div class="pill">
               <div class="k">San Lesmes</div>
               <div class="v" id="sumSL">—</div>
               <div class="s" id="sumSL2">—</div>
             </div>
+
             <div class="pill">
               <div class="k">Santiago</div>
               <div class="v" id="sumSA">—</div>
@@ -145,20 +156,20 @@
 
       <!-- REPORTES -->
       <section class="card">
-        <div class="card-head row space">
+        <div class="card-head row space wrap">
           <div>
             <h2>Reportes & Rendimiento</h2>
             <div class="muted small">Diario / Semanal / Mensual — por tienda y global.</div>
           </div>
 
-          <div class="row gap">
-            <select id="reportType" class="input">
+          <div class="report-controls">
+            <select id="reportType" class="input compact">
               <option value="daily">Diario</option>
               <option value="weekly">Semanal</option>
               <option value="monthly">Mensual</option>
             </select>
 
-            <select id="reportStore" class="input">
+            <select id="reportStore" class="input compact">
               <option value="global">Global (3 tiendas)</option>
               <option value="san_pablo">San Pablo</option>
               <option value="san_lesmes">San Lesmes</option>
@@ -166,6 +177,7 @@
             </select>
 
             <button id="btnRefresh" class="btn">Actualizar</button>
+            <button id="btnWhatsAppReport" class="btn whatsapp">WhatsApp (reporte)</button>
           </div>
         </div>
 
