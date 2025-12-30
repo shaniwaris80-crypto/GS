@@ -1,12 +1,15 @@
 /* =========================
    ARSLAN — Facturación Diaria
-   3 tiendas + PIN + Reportes + Gráficos
+   3 tiendas + PIN + Reportes + Gráficos + WhatsApp
    Guardado localStorage
 ========================= */
 
 const APP_KEY = "ARSLAN_FACTURACION_V1";
 const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_V1";
-const DEFAULT_PIN = "1234";
+const DEFAULT_PIN = "8410";
+
+// WhatsApp fijo (España +34)
+const WA_PHONE = "34631667893"; // +34 631 667 893
 
 const STORES = [
   { id: "san_pablo", name: "San Pablo" },
@@ -19,22 +22,28 @@ let settings = loadSettings();
 
 const $ = (id) => document.getElementById(id);
 
+// Views
 const loginView = $("loginView");
 const appView = $("appView");
 
+// Login
 const pinInput = $("pinInput");
 const btnLogin = $("btnLogin");
 const loginMsg = $("loginMsg");
 
+// Entry
 const dateInput = $("dateInput");
 const storeInput = $("storeInput");
 const cashInput = $("cashInput");
 const cardInput = $("cardInput");
+
 const btnSave = $("btnSave");
 const btnClear = $("btnClear");
 const btnDelete = $("btnDelete");
+const btnWhatsAppDay = $("btnWhatsAppDay");
 const saveMsg = $("saveMsg");
 
+// Summary
 const sumSP = $("sumSP");
 const sumSP2 = $("sumSP2");
 const sumSL = $("sumSL");
@@ -44,30 +53,33 @@ const sumSA2 = $("sumSA2");
 const sumGlobal = $("sumGlobal");
 const sumGlobal2 = $("sumGlobal2");
 
+// Reports
 const reportType = $("reportType");
 const reportStore = $("reportStore");
 const btnRefresh = $("btnRefresh");
+const btnWhatsAppReport = $("btnWhatsAppReport");
 
 const kpiCash = $("kpiCash");
 const kpiCard = $("kpiCard");
 const kpiTotal = $("kpiTotal");
 const kpiAvg = $("kpiAvg");
 
-const reportTable = $("reportTable").querySelector("tbody");
+const reportTableBody = $("reportTable").querySelector("tbody");
 const tableHint = $("tableHint");
 
+// Top controls
 const btnLogout = $("btnLogout");
 const btnBackup = $("btnBackup");
 const importFile = $("importFile");
-
 const btnTheme = $("btnTheme");
 const btnThemeLogin = $("btnThemeLogin");
 
+// Charts
 let chartTotal = null;
 let chartMix = null;
 
 /* -------------------------
-   Init
+   INIT
 ------------------------- */
 applyTheme(settings.theme || "dark");
 initDateDefault();
@@ -75,9 +87,7 @@ renderTodaySummary();
 refreshReports();
 
 btnLogin.addEventListener("click", doLogin);
-pinInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") doLogin();
-});
+pinInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
 btnTheme.addEventListener("click", toggleTheme);
 btnThemeLogin.addEventListener("click", toggleTheme);
@@ -91,8 +101,10 @@ btnLogout.addEventListener("click", () => {
 btnSave.addEventListener("click", onSave);
 btnClear.addEventListener("click", clearEntry);
 btnDelete.addEventListener("click", onDelete);
+btnWhatsAppDay.addEventListener("click", sendWhatsAppDay);
 
 btnRefresh.addEventListener("click", refreshReports);
+btnWhatsAppReport.addEventListener("click", sendWhatsAppReport);
 
 btnBackup.addEventListener("click", exportBackup);
 importFile.addEventListener("change", importBackup);
@@ -110,7 +122,7 @@ if (settings.isLogged) showApp();
 else showLogin();
 
 /* -------------------------
-   Views
+   VIEWS
 ------------------------- */
 function showLogin(){
   loginView.classList.remove("hidden");
@@ -130,7 +142,7 @@ function showApp(){
 }
 
 /* -------------------------
-   Login
+   LOGIN
 ------------------------- */
 function doLogin(){
   const pin = (pinInput.value || "").trim();
@@ -149,14 +161,14 @@ function doLogin(){
 }
 
 /* -------------------------
-   Theme
+   THEME
 ------------------------- */
 function toggleTheme(){
   const next = (document.documentElement.getAttribute("data-theme") === "light") ? "dark" : "light";
   applyTheme(next);
   settings.theme = next;
   saveSettings();
-  refreshReports(); // para refrescar colores del gráfico
+  refreshReports(); // refresca colores charts
 }
 
 function applyTheme(theme){
@@ -164,7 +176,7 @@ function applyTheme(theme){
 }
 
 /* -------------------------
-   State (Storage)
+   STORAGE
 ------------------------- */
 function loadState(){
   try{
@@ -201,11 +213,10 @@ function saveSettings(){
 }
 
 /* -------------------------
-   Helpers
+   HELPERS
 ------------------------- */
 function initDateDefault(){
-  const today = new Date();
-  dateInput.value = toISODate(today);
+  dateInput.value = toISODate(new Date());
 }
 
 function toISODate(d){
@@ -228,8 +239,11 @@ function formatMoney(n){
 }
 
 function normalizeMoneyInput(inputEl){
-  const v = inputEl.value;
-  inputEl.value = v.replace(/[^\d,.-]/g,"");
+  inputEl.value = String(inputEl.value || "").replace(/[^\d,.-]/g,"");
+}
+
+function round2(n){
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 function keyOf(dateISO, storeId){
@@ -260,31 +274,26 @@ function storeName(id){
   return STORES.find(s => s.id === id)?.name || id;
 }
 
-function round2(n){
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
 /* -------------------------
-   Días de la semana
+   WEEKDAY ES
 ------------------------- */
 function weekdayES(dateISO){
-  // dateISO: YYYY-MM-DD
   const d = new Date(dateISO + "T00:00:00");
   const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   return days[d.getDay()];
 }
-
 function dailyLabelWithWeekday(dateISO){
   return `${dateISO} (${weekdayES(dateISO)})`;
 }
 
 /* -------------------------
-   Entry form
+   ENTRY FORM
 ------------------------- */
 function fillEntryIfExists(){
   const dateISO = dateInput.value;
   const storeId = storeInput.value;
   const e = getEntry(dateISO, storeId);
+
   if (e){
     cashInput.value = String(e.cash ?? "").replace(".", ",");
     cardInput.value = String(e.card ?? "").replace(".", ",");
@@ -346,8 +355,28 @@ function onDelete(){
 }
 
 /* -------------------------
-   Today Summary
+   TODAY SUMMARY
 ------------------------- */
+function computeDayTotals(dateISO){
+  const byStore = {};
+  let gCash = 0, gCard = 0;
+
+  for (const s of STORES){
+    const e = getEntry(dateISO, s.id);
+    const cash = e?.cash || 0;
+    const card = e?.card || 0;
+    const total = cash + card;
+    byStore[s.id] = { cash, card, total };
+    gCash += cash;
+    gCard += card;
+  }
+
+  return {
+    byStore,
+    global: { cash: gCash, card: gCard, total: gCash + gCard }
+  };
+}
+
 function renderTodaySummary(){
   const dateISO = dateInput.value;
   const totals = computeDayTotals(dateISO);
@@ -369,28 +398,8 @@ function renderTodaySummary(){
   sumGlobal2.textContent = `Efectivo: ${formatMoney(totals.global.cash)} · Tarjeta: ${formatMoney(totals.global.card)}`;
 }
 
-function computeDayTotals(dateISO){
-  const byStore = {};
-  let gCash = 0, gCard = 0;
-
-  for (const s of STORES){
-    const e = getEntry(dateISO, s.id);
-    const cash = e?.cash || 0;
-    const card = e?.card || 0;
-    const total = cash + card;
-    byStore[s.id] = { cash, card, total };
-    gCash += cash;
-    gCard += card;
-  }
-
-  return {
-    byStore,
-    global: { cash: gCash, card: gCard, total: gCash + gCard }
-  };
-}
-
 /* -------------------------
-   Reports
+   REPORTS
 ------------------------- */
 function refreshReports(){
   const type = reportType.value;
@@ -412,7 +421,7 @@ function refreshReports(){
   kpiTotal.textContent = formatMoney(sum.total);
   kpiAvg.textContent = formatMoney(avg);
 
-  reportTable.innerHTML = "";
+  reportTableBody.innerHTML = "";
   for (const r of rows){
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -421,7 +430,7 @@ function refreshReports(){
       <td>${formatMoney(r.card)}</td>
       <td><b>${formatMoney(r.total)}</b></td>
     `;
-    reportTable.appendChild(tr);
+    reportTableBody.appendChild(tr);
   }
 
   tableHint.textContent = rows.length
@@ -436,7 +445,6 @@ function buildReport(type, store){
   if (!all.length) return [];
 
   const filtered = all.filter(e => store === "global" ? true : e.store === store);
-
   const map = new Map();
 
   for (const e of filtered){
@@ -447,10 +455,10 @@ function buildReport(type, store){
     let period, periodLabel;
     if (type === "daily"){
       period = date;
-      periodLabel = dailyLabelWithWeekday(date); // ✅ aquí añadimos día semana
+      periodLabel = dailyLabelWithWeekday(date);
     } else if (type === "weekly"){
       period = isoWeekLabel(date);
-      periodLabel = period;
+      periodLabel = period; // simple
     } else {
       period = monthLabel(date);
       periodLabel = period;
@@ -502,9 +510,7 @@ function estimateDaysCovered(rows, type){
   return rows.length;
 }
 
-/* -------------------------
-   Week / Month
-------------------------- */
+/* Week / Month labels */
 function monthLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
   const y = d.getFullYear();
@@ -535,7 +541,7 @@ function isoWeek(date){
 }
 
 /* -------------------------
-   Charts
+   CHARTS
 ------------------------- */
 function renderCharts(rows){
   const labels = rows.map(r => r.periodLabel);
@@ -562,7 +568,9 @@ function baseChartOptions(){
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
   return {
     responsive: true,
-    plugins: { legend: { labels: { color: isLight ? "#101828" : "#eaf0ff" } } },
+    plugins: {
+      legend: { labels: { color: isLight ? "#101828" : "#eaf0ff" } }
+    },
     scales: {
       x: { ticks: { color: isLight ? "#101828" : "#eaf0ff" }, grid: { color: "rgba(255,255,255,.06)" } },
       y: { ticks: { color: isLight ? "#101828" : "#eaf0ff" }, grid: { color: "rgba(255,255,255,.06)" } },
@@ -571,7 +579,98 @@ function baseChartOptions(){
 }
 
 /* -------------------------
-   Backup
+   WHATSAPP
+------------------------- */
+function sendWhatsAppDay(){
+  const dateISO = dateInput.value;
+  if (!dateISO){
+    alert("Selecciona una fecha.");
+    return;
+  }
+
+  const totals = computeDayTotals(dateISO);
+  const dayName = weekdayES(dateISO);
+
+  const sp = totals.byStore.san_pablo;
+  const sl = totals.byStore.san_lesmes;
+  const sa = totals.byStore.santiago;
+  const g  = totals.global;
+
+  const text = [
+    `📊 *RESUMEN DEL DÍA*`,
+    `📅 ${dateISO} (${dayName})`,
+    ``,
+    `🏪 *San Pablo*`,
+    `💶 Efectivo: ${formatMoney(sp.cash)}`,
+    `💳 Tarjeta: ${formatMoney(sp.card)}`,
+    `🧾 Total: ${formatMoney(sp.total)}`,
+    ``,
+    `🏪 *San Lesmes*`,
+    `💶 Efectivo: ${formatMoney(sl.cash)}`,
+    `💳 Tarjeta: ${formatMoney(sl.card)}`,
+    `🧾 Total: ${formatMoney(sl.total)}`,
+    ``,
+    `🏪 *Santiago*`,
+    `💶 Efectivo: ${formatMoney(sa.cash)}`,
+    `💳 Tarjeta: ${formatMoney(sa.card)}`,
+    `🧾 Total: ${formatMoney(sa.total)}`,
+    ``,
+    `🌍 *GLOBAL (3 tiendas)*`,
+    `💶 Efectivo global: ${formatMoney(g.cash)}`,
+    `💳 Tarjeta global: ${formatMoney(g.card)}`,
+    `🧾 Total global: ${formatMoney(g.total)}`
+  ].join("\n");
+
+  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(text);
+  window.open(url, "_blank");
+}
+
+function sendWhatsAppReport(){
+  const type = reportType.value;     // daily/weekly/monthly
+  const store = reportStore.value;   // global/tienda
+
+  const rows = buildReport(type, store);
+  if (!rows.length){
+    alert("No hay datos para este reporte.");
+    return;
+  }
+
+  const titleType = (type === "daily") ? "DIARIO" : (type === "weekly") ? "SEMANAL" : "MENSUAL";
+  const titleStore = (store === "global") ? "GLOBAL (3 tiendas)" : storeName(store);
+
+  const sum = rows.reduce((acc,r)=>({
+    cash: acc.cash + r.cash,
+    card: acc.card + r.card,
+    total: acc.total + r.total
+  }), {cash:0, card:0, total:0});
+
+  const lastRows = rows.slice(-10);
+  const first = rows[0].periodLabel;
+  const last = rows[rows.length - 1].periodLabel;
+
+  const lines = [];
+  lines.push(`📈 *REPORTE ${titleType}*`);
+  lines.push(`🏷️ ${titleStore}`);
+  lines.push(``);
+  lines.push(`💶 Efectivo: ${formatMoney(sum.cash)}`);
+  lines.push(`💳 Tarjeta: ${formatMoney(sum.card)}`);
+  lines.push(`🧾 TOTAL: ${formatMoney(sum.total)}`);
+  lines.push(``);
+  lines.push(`🗂️ *Últimos ${lastRows.length} periodos*:`);
+
+  for (const r of lastRows){
+    lines.push(`• ${r.periodLabel} — Efe ${formatMoney(r.cash)} · Tar ${formatMoney(r.card)} · Total ${formatMoney(r.total)}`);
+  }
+
+  lines.push(``);
+  lines.push(`📌 Rango: ${first} → ${last}`);
+
+  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(lines.join("\n"));
+  window.open(url, "_blank");
+}
+
+/* -------------------------
+   BACKUP
 ------------------------- */
 function exportBackup(){
   const payload = {
@@ -626,7 +725,7 @@ function importBackup(){
 }
 
 /* -------------------------
-   Utils
+   UTILS
 ------------------------- */
 function escapeHtml(str){
   return String(str)
@@ -636,3 +735,4 @@ function escapeHtml(str){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+
