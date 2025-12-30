@@ -6,8 +6,6 @@
 
 const APP_KEY = "ARSLAN_FACTURACION_V1";
 const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_V1";
-
-// Cambia aquí el PIN si quieres
 const DEFAULT_PIN = "1234";
 
 const STORES = [
@@ -108,7 +106,6 @@ storeInput.addEventListener("change", fillEntryIfExists);
 cashInput.addEventListener("input", () => normalizeMoneyInput(cashInput));
 cardInput.addEventListener("input", () => normalizeMoneyInput(cardInput));
 
-/* Auto-login si estaba logueado */
 if (settings.isLogged) showApp();
 else showLogin();
 
@@ -159,6 +156,7 @@ function toggleTheme(){
   applyTheme(next);
   settings.theme = next;
   saveSettings();
+  refreshReports(); // para refrescar colores del gráfico
 }
 
 function applyTheme(theme){
@@ -230,10 +228,8 @@ function formatMoney(n){
 }
 
 function normalizeMoneyInput(inputEl){
-  // Permite coma o punto, y limpia caracteres raros
   const v = inputEl.value;
-  const clean = v.replace(/[^\d,.-]/g,"");
-  inputEl.value = clean;
+  inputEl.value = v.replace(/[^\d,.-]/g,"");
 }
 
 function keyOf(dateISO, storeId){
@@ -262,6 +258,24 @@ function deleteEntry(dateISO, storeId){
 
 function storeName(id){
   return STORES.find(s => s.id === id)?.name || id;
+}
+
+function round2(n){
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/* -------------------------
+   Días de la semana
+------------------------- */
+function weekdayES(dateISO){
+  // dateISO: YYYY-MM-DD
+  const d = new Date(dateISO + "T00:00:00");
+  const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  return days[d.getDay()];
+}
+
+function dailyLabelWithWeekday(dateISO){
+  return `${dateISO} (${weekdayES(dateISO)})`;
 }
 
 /* -------------------------
@@ -331,18 +345,13 @@ function onDelete(){
   refreshReports();
 }
 
-function round2(n){
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
 /* -------------------------
-   Today Summary (per store + global)
+   Today Summary
 ------------------------- */
 function renderTodaySummary(){
   const dateISO = dateInput.value;
   const totals = computeDayTotals(dateISO);
 
-  // Por tienda: mostrar TOTAL y debajo mix efectivo/tarjeta
   const sp = totals.byStore.san_pablo || { cash:0, card:0, total:0 };
   const sl = totals.byStore.san_lesmes || { cash:0, card:0, total:0 };
   const sa = totals.byStore.santiago || { cash:0, card:0, total:0 };
@@ -389,7 +398,6 @@ function refreshReports(){
 
   const rows = buildReport(type, store);
 
-  // KPIs
   const sum = rows.reduce((acc,r)=>({
     cash: acc.cash + r.cash,
     card: acc.card + r.card,
@@ -404,12 +412,11 @@ function refreshReports(){
   kpiTotal.textContent = formatMoney(sum.total);
   kpiAvg.textContent = formatMoney(avg);
 
-  // Table
   reportTable.innerHTML = "";
   for (const r of rows){
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${escapeHtml(r.period)}</td>
+      <td>${escapeHtml(r.periodLabel)}</td>
       <td>${formatMoney(r.cash)}</td>
       <td>${formatMoney(r.card)}</td>
       <td><b>${formatMoney(r.total)}</b></td>
@@ -421,12 +428,10 @@ function refreshReports(){
     ? `Mostrando ${rows.length} periodos.`
     : "No hay datos aún. Empieza guardando ventas.";
 
-  // Charts
   renderCharts(rows);
 }
 
 function buildReport(type, store){
-  // Recolectar entradas -> agrupar por periodo
   const all = Object.values(state.entries || []);
   if (!all.length) return [];
 
@@ -435,31 +440,43 @@ function buildReport(type, store){
   const map = new Map();
 
   for (const e of filtered){
-    const date = e.date; // YYYY-MM-DD
+    const date = e.date;
     const cash = Number(e.cash || 0);
     const card = Number(e.card || 0);
 
-    const period = (type === "daily")
-      ? date
-      : (type === "weekly")
-        ? isoWeekLabel(date)
-        : monthLabel(date);
+    let period, periodLabel;
+    if (type === "daily"){
+      period = date;
+      periodLabel = dailyLabelWithWeekday(date); // ✅ aquí añadimos día semana
+    } else if (type === "weekly"){
+      period = isoWeekLabel(date);
+      periodLabel = period;
+    } else {
+      period = monthLabel(date);
+      periodLabel = period;
+    }
 
-    const prev = map.get(period) || { period, cash:0, card:0, total:0, sortKey: periodSortKey(type, date) };
+    const prev = map.get(period) || {
+      period,
+      periodLabel,
+      cash:0, card:0, total:0,
+      sortKey: periodSortKey(type, date)
+    };
+
     prev.cash += cash;
     prev.card += card;
     prev.total += (cash + card);
-
-    // sortKey (para ordenar cronológico)
     prev.sortKey = Math.min(prev.sortKey, periodSortKey(type, date));
+
     map.set(period, prev);
   }
 
   const rows = Array.from(map.values());
   rows.sort((a,b)=> a.sortKey - b.sortKey);
-  // redondeo
+
   return rows.map(r => ({
     period: r.period,
+    periodLabel: r.periodLabel,
     cash: round2(r.cash),
     card: round2(r.card),
     total: round2(r.total),
@@ -468,27 +485,25 @@ function buildReport(type, store){
 }
 
 function periodSortKey(type, dateISO){
-  // clave numérica para ordenar
   const d = new Date(dateISO + "T00:00:00");
   if (type === "daily") return d.getTime();
   if (type === "weekly"){
     const wk = isoWeek(d);
     return new Date(wk.mondayISO + "T00:00:00").getTime();
   }
-  // monthly
-  return (d.getFullYear() * 100 + (d.getMonth()+1)) * 100; // aprox
+  return (d.getFullYear() * 100 + (d.getMonth()+1)) * 100;
 }
 
 function estimateDaysCovered(rows, type){
   if (!rows.length) return 0;
   if (type === "daily") return rows.length;
   if (type === "weekly") return rows.length * 7;
-  if (type === "monthly") return rows.length * 30; // aproximación para KPI promedio
+  if (type === "monthly") return rows.length * 30;
   return rows.length;
 }
 
 /* -------------------------
-   Week / Month labels
+   Week / Month
 ------------------------- */
 function monthLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
@@ -504,7 +519,6 @@ function isoWeekLabel(dateISO){
 }
 
 function isoWeek(date){
-  // ISO week number + monday date
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -512,7 +526,6 @@ function isoWeek(date){
   const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   const year = d.getUTCFullYear();
 
-  // monday of that week
   const d2 = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const day2 = d2.getUTCDay() || 7;
   d2.setUTCDate(d2.getUTCDate() - (day2 - 1));
@@ -525,35 +538,22 @@ function isoWeek(date){
    Charts
 ------------------------- */
 function renderCharts(rows){
-  const labels = rows.map(r => r.period);
+  const labels = rows.map(r => r.periodLabel);
   const totals = rows.map(r => r.total);
   const cash = rows.map(r => r.cash);
   const card = rows.map(r => r.card);
 
-  // Total line
   if (chartTotal) chartTotal.destroy();
   chartTotal = new Chart($("chartTotal"), {
     type: "line",
-    data: {
-      labels,
-      datasets: [
-        { label: "Total", data: totals, tension: 0.3 }
-      ]
-    },
+    data: { labels, datasets: [{ label: "Total", data: totals, tension: 0.3 }] },
     options: baseChartOptions()
   });
 
-  // Mix bar
   if (chartMix) chartMix.destroy();
   chartMix = new Chart($("chartMix"), {
     type: "bar",
-    data: {
-      labels,
-      datasets: [
-        { label: "Efectivo", data: cash },
-        { label: "Tarjeta", data: card },
-      ]
-    },
+    data: { labels, datasets: [{ label: "Efectivo", data: cash }, { label: "Tarjeta", data: card }] },
     options: baseChartOptions()
   });
 }
@@ -562,9 +562,7 @@ function baseChartOptions(){
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
   return {
     responsive: true,
-    plugins: {
-      legend: { labels: { color: isLight ? "#101828" : "#eaf0ff" } }
-    },
+    plugins: { legend: { labels: { color: isLight ? "#101828" : "#eaf0ff" } } },
     scales: {
       x: { ticks: { color: isLight ? "#101828" : "#eaf0ff" }, grid: { color: "rgba(255,255,255,.06)" } },
       y: { ticks: { color: isLight ? "#101828" : "#eaf0ff" }, grid: { color: "rgba(255,255,255,.06)" } },
@@ -573,16 +571,13 @@ function baseChartOptions(){
 }
 
 /* -------------------------
-   Backup (Export/Import)
+   Backup
 ------------------------- */
 function exportBackup(){
   const payload = {
-    meta: {
-      app: "ARSLAN_FACTURACION_V1",
-      exportedAt: new Date().toISOString()
-    },
+    meta: { app: "ARSLAN_FACTURACION_V1", exportedAt: new Date().toISOString() },
     state,
-    settings: { ...settings, isLogged: false } // no exportar sesión
+    settings: { ...settings, isLogged: false }
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -610,7 +605,6 @@ function importBackup(){
       state = payload.state;
       saveState();
 
-      // settings opcional
       if (payload.settings){
         const keepTheme = settings.theme;
         settings = { ...settings, ...payload.settings, isLogged: true, theme: keepTheme };
