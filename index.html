@@ -75,10 +75,11 @@
         <div class="card">
           <div class="card-head">
             <h2>Entrada diaria</h2>
-            <div class="muted small">Efectivo + Tarjeta + Importe del ticket (para ver diferencia).</div>
+            <div class="muted small">Ventas + ticket + caja real (con gastos/retiradas/ingresos extra).</div>
           </div>
 
           <div class="form">
+
             <div class="row gap wrap">
               <div class="field">
                 <label>Fecha</label>
@@ -96,7 +97,7 @@
 
             <div class="row gap wrap">
               <div class="field">
-                <label>Efectivo (€)</label>
+                <label>Efectivo declarado (€)</label>
                 <input id="cashInput" class="input" inputmode="decimal" placeholder="0,00" />
               </div>
               <div class="field">
@@ -111,8 +112,52 @@
                 <input id="ticketInput" class="input" inputmode="decimal" placeholder="0,00" />
               </div>
               <div class="field">
-                <label>Diferencia (Ticket - Total)</label>
+                <label>Diferencia ticket (Ticket - Total)</label>
                 <div class="input readonly" id="diffBox">—</div>
+              </div>
+            </div>
+
+            <div class="hr"></div>
+
+            <h3>Movimientos de caja (para que cuadre de verdad)</h3>
+
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Gastos del día (€)</label>
+                <input id="expensesInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Retiradas (sacado de caja) (€)</label>
+                <input id="withdrawalsInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Ingresos extra (€)</label>
+                <input id="extraIncomeInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Efectivo contado (caja real) (€)</label>
+                <input id="cashCountedInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="row gap wrap">
+              <div class="field" style="min-width:100%">
+                <label>Observaciones</label>
+                <textarea id="notesInput" class="input textarea" rows="3" placeholder="Ej: cambio, pago proveedor, falta 20€, etc."></textarea>
+              </div>
+            </div>
+
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Efectivo esperado (ajustado)</label>
+                <div class="input readonly" id="expectedCashBox">—</div>
+              </div>
+              <div class="field">
+                <label>Diferencia caja (contado - esperado)</label>
+                <div class="input readonly" id="cashDiffBox">—</div>
               </div>
             </div>
 
@@ -145,7 +190,7 @@
         <div class="card">
           <div class="card-head">
             <h2>Resumen del día</h2>
-            <div class="muted small">Totales por tienda + global (incluye ticket y diferencia).</div>
+            <div class="muted small">Totales por tienda + global (ticket, diferencias, caja ajustada).</div>
           </div>
 
           <div class="summary">
@@ -153,16 +198,19 @@
               <div class="k">San Pablo</div>
               <div class="v" id="sumSP">—</div>
               <div class="s" id="sumSP2">—</div>
+              <div class="tagrow" id="semSP"></div>
             </div>
             <div class="pill">
               <div class="k">San Lesmes</div>
               <div class="v" id="sumSL">—</div>
               <div class="s" id="sumSL2">—</div>
+              <div class="tagrow" id="semSL"></div>
             </div>
             <div class="pill">
               <div class="k">Santiago</div>
               <div class="v" id="sumSA">—</div>
               <div class="s" id="sumSA2">—</div>
+              <div class="tagrow" id="semSA"></div>
             </div>
 
             <div class="hr"></div>
@@ -171,39 +219,124 @@
               <div class="k">GLOBAL (3 tiendas)</div>
               <div class="v" id="sumGlobal">—</div>
               <div class="s" id="sumGlobal2">—</div>
+              <div class="tagrow" id="semGlobal"></div>
             </div>
 
             <div class="hr"></div>
 
-            <div class="goals">
-              <div class="row gap wrap">
-                <div class="field">
-                  <label>Objetivo diario (€)</label>
-                  <input id="goalDaily" class="input" inputmode="decimal" placeholder="Ej: 3000" />
+            <h3>Objetivos (por tienda + global)</h3>
+
+            <div class="grid-obj">
+              <div class="objcard">
+                <div class="objtitle">San Pablo</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailySP" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlySP" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
                 </div>
-                <div class="field">
-                  <label>Objetivo mensual (€)</label>
-                  <input id="goalMonthly" class="input" inputmode="decimal" placeholder="Ej: 90000" />
-                </div>
-              </div>
-              <div class="row gap wrap">
-                <button id="btnSaveGoals" class="btn">Guardar objetivos</button>
               </div>
 
-              <div class="goalBox">
-                <div class="k">Cumplimiento (hoy)</div>
-                <div class="v" id="goalTodayPct">—</div>
-                <div class="s" id="goalTodayTxt">—</div>
+              <div class="objcard">
+                <div class="objtitle">San Lesmes</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailySL" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlySL" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
               </div>
 
-              <div class="goalBox">
-                <div class="k">Cumplimiento (mes actual)</div>
-                <div class="v" id="goalMonthPct">—</div>
-                <div class="s" id="goalMonthTxt">—</div>
+              <div class="objcard">
+                <div class="objtitle">Santiago</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailySA" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlySA" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="objcard">
+                <div class="objtitle">GLOBAL</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailyG" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlyG" class="input" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
               </div>
             </div>
 
+            <div class="row gap wrap" style="margin-top:10px">
+              <button id="btnSaveGoals" class="btn">Guardar objetivos</button>
+            </div>
+
+            <div class="goalBox">
+              <div class="k">Cumplimiento (hoy, global)</div>
+              <div class="v" id="goalTodayPct">—</div>
+              <div class="s" id="goalTodayTxt">—</div>
+            </div>
+
+            <div class="goalBox">
+              <div class="k">Cumplimiento (mes actual, global)</div>
+              <div class="v" id="goalMonthPct">—</div>
+              <div class="s" id="goalMonthTxt">—</div>
+            </div>
+
           </div>
+        </div>
+      </section>
+
+      <!-- ÚLTIMOS 7 DÍAS -->
+      <section class="card">
+        <div class="card-head row space wrap">
+          <div>
+            <h2>Últimos 7 días</h2>
+            <div class="muted small">Edición rápida: clic en una fila para cargar · botones para borrar.</div>
+          </div>
+          <div class="row gap wrap">
+            <button id="btnRefresh7" class="btn">Actualizar</button>
+            <button id="btnWhatsAppWeek" class="btn whatsapp">WhatsApp (semana)</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table" id="table7">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tienda</th>
+                <th>Efectivo</th>
+                <th>Tarjeta</th>
+                <th>Total</th>
+                <th>Ticket</th>
+                <th>Dif ticket</th>
+                <th>Esperado</th>
+                <th>Contado</th>
+                <th>Dif caja</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="muted small" id="hint7"></div>
         </div>
       </section>
 
@@ -212,7 +345,7 @@
         <div class="card-head row space wrap">
           <div>
             <h2>Reportes & Rendimiento</h2>
-            <div class="muted small">Diario / Semanal / Mensual — con rango, gráficos y ranking.</div>
+            <div class="muted small">Diario / Semanal / Mensual — con rango, gráficos, ticket y diferencia.</div>
           </div>
 
           <div class="report-controls">
@@ -251,6 +384,14 @@
           <div class="kpi">
             <div class="k">TOTAL</div>
             <div class="v" id="kpiTotal">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Ticket</div>
+            <div class="v" id="kpiTicket">—</div>
+          </div>
+          <div class="kpi">
+            <div class="k">Dif ticket</div>
+            <div class="v" id="kpiDiff">—</div>
           </div>
           <div class="kpi">
             <div class="k">Promedio/día</div>
@@ -301,6 +442,8 @@
                 <th>Efectivo</th>
                 <th>Tarjeta</th>
                 <th>Total</th>
+                <th>Ticket</th>
+                <th>Dif ticket</th>
               </tr>
             </thead>
             <tbody></tbody>
