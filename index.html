@@ -29,7 +29,7 @@
       <p class="muted">Introduce tu PIN para acceder.</p>
 
       <div class="row gap wrap">
-        <input id="pinInput" inputmode="numeric" maxlength="8" class="input pin" placeholder="PIN" />
+        <input id="pinInput" inputmode="numeric" maxlength="10" class="input pin" placeholder="PIN" />
         <button id="btnLogin" class="btn primary">Entrar</button>
       </div>
 
@@ -38,9 +38,7 @@
       <div class="hr"></div>
 
       <div class="row space wrap">
-        <div class="muted small">
-          PIN por defecto: <b>1234</b>
-        </div>
+        <div class="muted small">Acceso protegido</div>
         <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
       </div>
     </div>
@@ -59,9 +57,9 @@
 
       <div class="topbar-right">
         <button id="btnTheme" class="btn ghost">🌙/☀️</button>
-        <button id="btnBackup" class="btn ghost">Exportar</button>
+        <button id="btnBackup" class="btn ghost">Exportar JSON</button>
         <label class="btn ghost file-label">
-          Importar
+          Importar JSON
           <input id="importFile" type="file" accept="application/json" hidden />
         </label>
         <button id="btnLogout" class="btn danger">Salir</button>
@@ -69,13 +67,13 @@
     </header>
 
     <main class="container">
-      <!-- GRID: Entrada + Resumen día -->
+      <!-- Entrada + Resumen -->
       <section class="grid-2">
         <!-- ENTRADA -->
         <div class="card">
           <div class="card-head">
             <h2>Entrada diaria</h2>
-            <div class="muted small">Guarda ventas por tienda (efectivo + tarjeta).</div>
+            <div class="muted small">Guarda ventas por tienda (efectivo + tarjeta) y el importe del ticket.</div>
           </div>
 
           <div class="form">
@@ -84,7 +82,6 @@
                 <label>Fecha</label>
                 <input id="dateInput" type="date" class="input" />
               </div>
-
               <div class="field">
                 <label>Tienda</label>
                 <select id="storeInput" class="input">
@@ -106,11 +103,36 @@
               </div>
             </div>
 
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Importe ticket (€)</label>
+                <input id="ticketInput" class="input" inputmode="decimal" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Diferencia (Ticket - Total)</label>
+                <div class="input readonly" id="diffBox">—</div>
+              </div>
+            </div>
+
             <div class="actions">
               <button id="btnSave" class="btn primary">Guardar / Actualizar</button>
               <button id="btnClear" class="btn">Limpiar</button>
               <button id="btnDelete" class="btn danger ghost">Borrar</button>
               <button id="btnWhatsAppDay" class="btn whatsapp">WhatsApp (día)</button>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="card-sub">
+              <div class="row space wrap">
+                <div>
+                  <div class="muted small">Historial del día (clic para cargar)</div>
+                  <div class="muted small" id="dayHint">—</div>
+                </div>
+                <button id="btnCopyDay" class="btn ghost">Copiar texto día</button>
+              </div>
+
+              <div id="dayList" class="daylist"></div>
             </div>
 
             <div id="saveMsg" class="msg"></div>
@@ -121,7 +143,7 @@
         <div class="card">
           <div class="card-head">
             <h2>Resumen del día</h2>
-            <div class="muted small">Totales por tienda + global (efectivo/tarjeta/total).</div>
+            <div class="muted small">Totales por tienda + global (incluye diferencia por ticket).</div>
           </div>
 
           <div class="summary">
@@ -130,13 +152,11 @@
               <div class="v" id="sumSP">—</div>
               <div class="s" id="sumSP2">—</div>
             </div>
-
             <div class="pill">
               <div class="k">San Lesmes</div>
               <div class="v" id="sumSL">—</div>
               <div class="s" id="sumSL2">—</div>
             </div>
-
             <div class="pill">
               <div class="k">Santiago</div>
               <div class="v" id="sumSA">—</div>
@@ -150,6 +170,37 @@
               <div class="v" id="sumGlobal">—</div>
               <div class="s" id="sumGlobal2">—</div>
             </div>
+
+            <div class="hr"></div>
+
+            <div class="goals">
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Objetivo diario (€)</label>
+                  <input id="goalDaily" class="input" inputmode="decimal" placeholder="Ej: 3000" />
+                </div>
+                <div class="field">
+                  <label>Objetivo mensual (€)</label>
+                  <input id="goalMonthly" class="input" inputmode="decimal" placeholder="Ej: 90000" />
+                </div>
+              </div>
+              <div class="row gap wrap">
+                <button id="btnSaveGoals" class="btn">Guardar objetivos</button>
+              </div>
+
+              <div class="goalBox">
+                <div class="k">Cumplimiento (hoy)</div>
+                <div class="v" id="goalTodayPct">—</div>
+                <div class="s" id="goalTodayTxt">—</div>
+              </div>
+
+              <div class="goalBox">
+                <div class="k">Cumplimiento (mes actual)</div>
+                <div class="v" id="goalMonthPct">—</div>
+                <div class="s" id="goalMonthTxt">—</div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -159,7 +210,7 @@
         <div class="card-head row space wrap">
           <div>
             <h2>Reportes & Rendimiento</h2>
-            <div class="muted small">Diario / Semanal / Mensual — por tienda y global.</div>
+            <div class="muted small">Diario / Semanal / Mensual — con rango y ranking.</div>
           </div>
 
           <div class="report-controls">
@@ -176,8 +227,13 @@
               <option value="santiago">Santiago</option>
             </select>
 
+            <input id="rangeFrom" type="date" class="input compact" />
+            <input id="rangeTo" type="date" class="input compact" />
+
             <button id="btnRefresh" class="btn">Actualizar</button>
             <button id="btnWhatsAppReport" class="btn whatsapp">WhatsApp (reporte)</button>
+            <button id="btnWhatsAppReportFull" class="btn whatsapp ghost">WhatsApp (completo)</button>
+            <button id="btnExportCSV" class="btn ghost">Exportar CSV</button>
           </div>
         </div>
 
@@ -213,6 +269,28 @@
 
         <div class="hr"></div>
 
+        <div class="rank-grid">
+          <div class="rank-card">
+            <h3>Ranking (rango actual)</h3>
+            <div id="rankList" class="ranklist"></div>
+          </div>
+          <div class="rank-card">
+            <h3>Mejor / Peor</h3>
+            <div class="rankbox">
+              <div class="k">Mejor tienda</div>
+              <div class="v" id="bestStore">—</div>
+              <div class="s" id="bestStoreTxt">—</div>
+            </div>
+            <div class="rankbox">
+              <div class="k">Peor tienda</div>
+              <div class="v" id="worstStore">—</div>
+              <div class="s" id="worstStoreTxt">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
         <div class="table-wrap">
           <table class="table" id="reportTable">
             <thead>
@@ -231,7 +309,7 @@
     </main>
 
     <footer class="footer muted small">
-      Guardado local (localStorage). Usa “Exportar” para hacer copia.
+      Guardado local (localStorage). Usa exportación para copia.
     </footer>
   </div>
 
