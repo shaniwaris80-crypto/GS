@@ -1,21 +1,22 @@
 /* =========================
-   ARSLAN — Facturación Diaria PRO
-   + PIN por hash (no texto plano)
-   + 3 tiendas
-   + Efectivo/Tarjeta + Importe Ticket + Diferencia
-   + Reportes + Rango + Ranking + Goals
-   + WhatsApp día y reportes
+   ARSLAN — Facturación Diaria PRO (V4)
+   - Login por hash (PIN no se muestra)
+   - Fallback SHA-256 (funciona incluso en file://)
+   - 3 tiendas: San Pablo / San Lesmes / Santiago
+   - Entrada: efectivo + tarjeta + ticket + diferencia
+   - Resumen día + WhatsApp
+   - Reportes con rango + gráficos + ranking
+   - Export/Import JSON + Export CSV
 ========================= */
 
-const APP_KEY = "ARSLAN_FACTURACION_PRO_V3";
-const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_PRO_V3";
+const APP_KEY = "ARSLAN_FACTURACION_PRO_V4";
+const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_PRO_V4";
 
-// WhatsApp fijo (España +34)
-const WA_PHONE = "34631667893";
+const WA_PHONE = "34631667893"; // +34 631 667 893
 
-// HASH SHA-256 del PIN "8410" (para no guardarlo en texto plano)
-const DEFAULT_PIN_HASH = "6972c92530945b68a2aa34a74c9621b6fb983c91fef1a7437a1918c62d42f2e8"; 
-// Nota: si quieres, luego lo cambiamos a otro PIN y recalculamos hash.
+// ✅ PIN NUEVO: 7392  (NO se muestra en UI)
+// SHA-256("7392") = fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18
+const DEFAULT_PIN_HASH = "fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18";
 
 const STORES = [
   { id: "san_pablo", name: "San Pablo" },
@@ -28,6 +29,7 @@ let settings = loadSettings();
 
 const $ = (id) => document.getElementById(id);
 
+/* ---------- DOM ---------- */
 // Views
 const loginView = $("loginView");
 const appView = $("appView");
@@ -50,6 +52,7 @@ const btnClear = $("btnClear");
 const btnDelete = $("btnDelete");
 const btnWhatsAppDay = $("btnWhatsAppDay");
 const btnCopyDay = $("btnCopyDay");
+
 const dayList = $("dayList");
 const dayHint = $("dayHint");
 const saveMsg = $("saveMsg");
@@ -109,24 +112,26 @@ const btnThemeLogin = $("btnThemeLogin");
 let chartTotal = null;
 let chartMix = null;
 
-/* -------------------------
-   INIT
-------------------------- */
+/* ---------- INIT ---------- */
 applyTheme(settings.theme || "dark");
 initDefaults();
 
+// Login
 btnLogin.addEventListener("click", doLogin);
 pinInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
-btnTheme.addEventListener("click", toggleTheme);
-btnThemeLogin.addEventListener("click", toggleTheme);
+// Theme
+btnTheme?.addEventListener("click", toggleTheme);
+btnThemeLogin?.addEventListener("click", toggleTheme);
 
+// Logout
 btnLogout.addEventListener("click", () => {
   settings.isLogged = false;
   saveSettings();
   showLogin();
 });
 
+// Entry events
 btnSave.addEventListener("click", onSave);
 btnClear.addEventListener("click", clearEntry);
 btnDelete.addEventListener("click", onDelete);
@@ -152,25 +157,25 @@ cashInput.addEventListener("input", () => { normalizeMoneyInput(cashInput); upda
 cardInput.addEventListener("input", () => { normalizeMoneyInput(cardInput); updateDiffBox(); });
 ticketInput.addEventListener("input", () => { normalizeMoneyInput(ticketInput); updateDiffBox(); });
 
+// Reports
 btnRefresh.addEventListener("click", refreshReports);
 btnWhatsAppReport.addEventListener("click", () => sendWhatsAppReport(false));
 btnWhatsAppReportFull.addEventListener("click", () => sendWhatsAppReport(true));
 btnExportCSV.addEventListener("click", exportCSV);
 
+// Backup
 btnBackup.addEventListener("click", exportBackup);
 importFile.addEventListener("change", importBackup);
 
+// Start view
 if (settings.isLogged) showApp();
 else showLogin();
 
-/* -------------------------
-   Defaults
-------------------------- */
+/* ---------- Defaults ---------- */
 function initDefaults(){
   const today = toISODate(new Date());
   if (!settings.goals) settings.goals = { daily: 0, monthly: 0 };
 
-  // Rango por defecto: mes actual
   const firstDay = today.slice(0,7) + "-01";
   dateInput.value = today;
   rangeFrom.value = firstDay;
@@ -182,9 +187,7 @@ function initDefaults(){
 
 function getSelectedDate(){ return dateInput.value; }
 
-/* -------------------------
-   Views
-------------------------- */
+/* ---------- Views ---------- */
 function showLogin(){
   loginView.classList.remove("hidden");
   appView.classList.add("hidden");
@@ -203,9 +206,7 @@ function showApp(){
   refreshReports();
 }
 
-/* -------------------------
-   Login (hash)
-------------------------- */
+/* ---------- Login (hash + fallback) ---------- */
 async function doLogin(){
   const pin = (pinInput.value || "").trim();
   const validHash = settings.pinHash || DEFAULT_PIN_HASH;
@@ -225,16 +226,99 @@ async function doLogin(){
 }
 
 async function sha256Hex(text){
-  const enc = new TextEncoder();
-  const data = enc.encode(text);
-  const hashBuf = await crypto.subtle.digest("SHA-256", data);
-  const hashArr = Array.from(new Uint8Array(hashBuf));
-  return hashArr.map(b => b.toString(16).padStart(2,"0")).join("");
+  // WebCrypto (si disponible)
+  try{
+    if (crypto?.subtle?.digest){
+      const enc = new TextEncoder();
+      const data = enc.encode(text);
+      const hashBuf = await crypto.subtle.digest("SHA-256", data);
+      const hashArr = Array.from(new Uint8Array(hashBuf));
+      return hashArr.map(b => b.toString(16).padStart(2,"0")).join("");
+    }
+  }catch(e){
+    // cae al fallback
+  }
+  // Fallback JS puro (funciona en file://)
+  return sha256Fallback(text);
 }
 
-/* -------------------------
-   Theme
-------------------------- */
+/* ===== SHA-256 fallback (JS puro) ===== */
+function sha256Fallback(ascii){
+  function rightRotate(value, amount){ return (value>>>amount) | (value<<(32-amount)); }
+
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  let result = "";
+
+  const words = [];
+  const asciiBitLength = ascii.length * 8;
+
+  let hash = sha256Fallback.h = sha256Fallback.h || [];
+  let k = sha256Fallback.k = sha256Fallback.k || [];
+  let primeCounter = k.length;
+
+  const isComposite = {};
+  for (let candidate = 2; primeCounter < 64; candidate++){
+    if (!isComposite[candidate]){
+      for (let i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+      hash[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
+      k[primeCounter++] = (mathPow(candidate, 1/3) * maxWord) | 0;
+    }
+  }
+
+  ascii += "\x80";
+  while (ascii.length % 64 - 56) ascii += "\x00";
+  for (let i = 0; i < ascii.length; i++){
+    const j = ascii.charCodeAt(i);
+    words[i>>2] |= j << ((3 - i)%4)*8;
+  }
+  words[words.length] = ((asciiBitLength / maxWord) | 0);
+  words[words.length] = (asciiBitLength);
+
+  for (let j = 0; j < words.length;){
+    const w = words.slice(j, j += 16);
+    const oldHash = hash.slice(0);
+
+    for (let i = 0; i < 64; i++){
+      const w15 = w[i - 15], w2 = w[i - 2];
+
+      const a = hash[0], e = hash[4];
+      const temp1 = (hash[7]
+        + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
+        + ((e & hash[5]) ^ ((~e) & hash[6]))
+        + k[i]
+        + (w[i] = (i < 16) ? w[i] : (
+          w[i - 16]
+          + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15>>>3))
+          + w[i - 7]
+          + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2>>>10))
+        ) | 0)
+      ) | 0;
+
+      const temp2 = ((rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
+        + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]))
+      ) | 0;
+
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[4] = (hash[4] + temp1) | 0;
+      hash.pop();
+    }
+
+    for (let i = 0; i < 8; i++){
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+
+  for (let i = 0; i < 8; i++){
+    for (let j = 3; j + 1; j--){
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += ((b < 16) ? "0" : "") + b.toString(16);
+    }
+  }
+  return result;
+}
+
+/* ---------- Theme ---------- */
 function toggleTheme(){
   const next = (document.documentElement.getAttribute("data-theme") === "light") ? "dark" : "light";
   applyTheme(next);
@@ -247,9 +331,7 @@ function applyTheme(theme){
   document.documentElement.setAttribute("data-theme", theme);
 }
 
-/* -------------------------
-   Storage
-------------------------- */
+/* ---------- Storage ---------- */
 function loadState(){
   try{
     const raw = localStorage.getItem(APP_KEY);
@@ -267,11 +349,15 @@ function loadSettings(){
   try{
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { isLogged:false, theme:"dark", goals:{daily:0, monthly:0}, pinHash: DEFAULT_PIN_HASH };
+
     const parsed = JSON.parse(raw);
     if (typeof parsed.isLogged !== "boolean") parsed.isLogged = false;
     if (!parsed.theme) parsed.theme = "dark";
     if (!parsed.goals) parsed.goals = { daily:0, monthly:0 };
-    if (!parsed.pinHash) parsed.pinHash = DEFAULT_PIN_HASH;
+
+    // ✅ si el pinHash guardado es inválido, fuerza el nuevo
+    if (!parsed.pinHash || String(parsed.pinHash).length !== 64) parsed.pinHash = DEFAULT_PIN_HASH;
+
     return parsed;
   }catch{
     return { isLogged:false, theme:"dark", goals:{daily:0, monthly:0}, pinHash: DEFAULT_PIN_HASH };
@@ -279,9 +365,7 @@ function loadSettings(){
 }
 function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
 
-/* -------------------------
-   Helpers
-------------------------- */
+/* ---------- Helpers ---------- */
 function toISODate(d){
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
@@ -314,7 +398,7 @@ function setEntry(dateISO, storeId, cash, card, ticket){
     date: dateISO,
     store: storeId,
     cash, card,
-    ticket,                 // ✅ nuevo
+    ticket,
     updatedAt: new Date().toISOString()
   };
   saveState();
@@ -348,16 +432,13 @@ function escapeHtml(str){
 function diffValue(ticket, total){
   return round2((ticket || 0) - (total || 0));
 }
-
 function formatDiff(d){
   const v = Number(d || 0);
   const sign = v > 0 ? "+" : "";
-  return `${sign}${v.toLocaleString("es-ES", { minimumFractionDigits:2, maximumFractionDigits:2 })} €`;
+  return `${sign}${v.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €`;
 }
 
-/* -------------------------
-   Entry
-------------------------- */
+/* ---------- Entry ---------- */
 function fillEntryIfExists(){
   const dateISO = dateInput.value;
   const storeId = storeInput.value;
@@ -373,7 +454,6 @@ function fillEntryIfExists(){
     ticketInput.value = "";
   }
   updateDiffBox();
-
   saveMsg.textContent = "";
   saveMsg.className = "msg";
 }
@@ -389,7 +469,6 @@ function updateDiffBox(){
     diffBox.textContent = "—";
     return;
   }
-
   diffBox.textContent = `${formatDiff(d)}  (Ticket ${formatMoney(ticket)} - Total ${formatMoney(total)})`;
 }
 
@@ -419,11 +498,7 @@ function onSave(){
   const total = cash + card;
   const d = diffValue(ticket, total);
 
-  toast(
-    saveMsg,
-    `Guardado ✅ (${storeName(storeId)} — Total ${formatMoney(total)} · Ticket ${formatMoney(ticket)} · Dif ${formatDiff(d)})`,
-    true
-  );
+  toast(saveMsg, `Guardado ✅ (${storeName(storeId)} — Total ${formatMoney(total)} · Ticket ${formatMoney(ticket)} · Dif ${formatDiff(d)})`, true);
 
   renderTodaySummary();
   renderDayHistory();
@@ -438,7 +513,6 @@ function onDelete(){
     toast(saveMsg, "No existe registro para borrar.", false);
     return;
   }
-
   deleteEntry(dateISO, storeId);
   toast(saveMsg, "Registro borrado ✅", true);
 
@@ -449,9 +523,7 @@ function onDelete(){
   refreshReports();
 }
 
-/* -------------------------
-   Day summary + history
-------------------------- */
+/* ---------- Day summary + history ---------- */
 function computeDayTotals(dateISO){
   const byStore = {};
   let gCash = 0, gCard = 0, gTicket = 0;
@@ -461,6 +533,7 @@ function computeDayTotals(dateISO){
     const cash = e?.cash || 0;
     const card = e?.card || 0;
     const ticket = e?.ticket || 0;
+
     const total = cash + card;
     const diff = diffValue(ticket, total);
 
@@ -511,13 +584,7 @@ function renderDayHistory(){
     const total = cash + card;
     const diff = diffValue(ticket, total);
 
-    return {
-      store: s.id,
-      name: s.name,
-      cash, card, ticket,
-      total, diff,
-      exists: !!e
-    };
+    return { store:s.id, name:s.name, cash, card, ticket, total, diff, exists: !!e };
   });
 
   const existsCount = items.filter(x => x.exists).length;
@@ -542,9 +609,7 @@ function renderDayHistory(){
   }
 }
 
-/* -------------------------
-   Goals
-------------------------- */
+/* ---------- Goals ---------- */
 function onSaveGoals(){
   const d = round2(parseMoney(goalDaily.value));
   const m = round2(parseMoney(goalMonthly.value));
@@ -583,9 +648,7 @@ function renderGoals(){
   }
 }
 
-/* -------------------------
-   Reports (no incluye ticket por ahora; si quieres lo meto en tabla)
-------------------------- */
+/* ---------- Reports ---------- */
 function refreshReports(){
   const type = reportType.value;
   const store = reportStore.value;
@@ -703,7 +766,7 @@ function estimateDaysCovered(rows, type){
   return rows.length;
 }
 
-/* Labels */
+/* ---------- Labels helpers ---------- */
 function monthLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
@@ -747,9 +810,7 @@ function isoWeek(date){
   return { year, week: weekNo, mondayISO };
 }
 
-/* -------------------------
-   Charts
-------------------------- */
+/* ---------- Charts ---------- */
 function renderCharts(rows){
   const labels = rows.map(r => r.periodLabel);
   const totals = rows.map(r => r.total);
@@ -783,9 +844,7 @@ function baseChartOptions(){
   };
 }
 
-/* -------------------------
-   Ranking
-------------------------- */
+/* ---------- Ranking ---------- */
 function renderRanking(from, to){
   const sums = STORES.map(s => {
     const rows = buildReport("daily", s.id, from, to);
@@ -814,9 +873,7 @@ function renderRanking(from, to){
   worstStoreTxt.textContent = worst ? `Total: ${formatMoney(worst.total)}` : "—";
 }
 
-/* -------------------------
-   WhatsApp
-------------------------- */
+/* ---------- WhatsApp ---------- */
 function buildWhatsAppDayText(dateISO){
   const totals = computeDayTotals(dateISO);
   const dayName = weekdayES(dateISO);
@@ -899,9 +956,7 @@ function openWhatsApp(text){
   window.open(url, "_blank");
 }
 
-/* -------------------------
-   Export CSV
-------------------------- */
+/* ---------- Export CSV ---------- */
 function exportCSV(){
   const type = reportType.value;
   const store = reportStore.value;
@@ -939,14 +994,12 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
-/* -------------------------
-   Backup JSON
-------------------------- */
+/* ---------- Backup JSON ---------- */
 function exportBackup(){
   const payload = {
-    meta: { app: "ARSLAN_FACTURACION_PRO_V3", exportedAt: new Date().toISOString() },
+    meta: { app: "ARSLAN_FACTURACION_PRO_V4", exportedAt: new Date().toISOString() },
     state,
-    settings: { ...settings, isLogged:false } // no exporta login activo
+    settings: { ...settings, isLogged:false } // no exporta sesión activa
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
@@ -975,7 +1028,7 @@ function importBackup(){
 
       if (payload.settings){
         const keepTheme = settings.theme;
-        const keepPinHash = settings.pinHash || DEFAULT_PIN_HASH; // protege el pin
+        const keepPinHash = settings.pinHash || DEFAULT_PIN_HASH; // protege pin
         settings = { ...settings, ...payload.settings, isLogged:false, theme:keepTheme, pinHash: keepPinHash };
         saveSettings();
       }
@@ -996,9 +1049,7 @@ function importBackup(){
   reader.readAsText(file);
 }
 
-/* -------------------------
-   UX
-------------------------- */
+/* ---------- UX ---------- */
 function toast(el, text, ok=true){
   el.className = "msg " + (ok ? "ok" : "err");
   el.textContent = text;
@@ -1015,4 +1066,3 @@ async function copyToClipboard(text){
     ta.remove();
   }
 }
-
