@@ -14,7 +14,7 @@ const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_PRO_V3";
 const WA_PHONE = "34631667893";
 
 // HASH SHA-256 del PIN "8410" (para no guardarlo en texto plano)
-const DEFAULT_PIN_HASH = "b2c08e5b4d6a4e4e4b8d1f4e0f9a9e2c1b7e2c9d2a0c2a3c68c0c19b2c3f8a2a"; 
+const DEFAULT_PIN_HASH = "6972c92530945b68a2aa34a74c9621b6fb983c91fef1a7437a1918c62d42f2e8"; 
 // Nota: si quieres, luego lo cambiamos a otro PIN y recalculamos hash.
 
 const STORES = [
