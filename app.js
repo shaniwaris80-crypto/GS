@@ -1,15 +1,21 @@
 /* =========================
-   ARSLAN — Facturación Diaria
-   3 tiendas + PIN + Reportes + Gráficos + WhatsApp
-   Guardado localStorage
+   ARSLAN — Facturación Diaria PRO
+   + PIN por hash (no texto plano)
+   + 3 tiendas
+   + Efectivo/Tarjeta + Importe Ticket + Diferencia
+   + Reportes + Rango + Ranking + Goals
+   + WhatsApp día y reportes
 ========================= */
 
-const APP_KEY = "ARSLAN_FACTURACION_V1";
-const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_V1";
-const DEFAULT_PIN = "8410";
+const APP_KEY = "ARSLAN_FACTURACION_PRO_V3";
+const SETTINGS_KEY = "ARSLAN_FACTURACION_SETTINGS_PRO_V3";
 
 // WhatsApp fijo (España +34)
-const WA_PHONE = "34631667893"; // +34 631 667 893
+const WA_PHONE = "34631667893";
+
+// HASH SHA-256 del PIN "8410" (para no guardarlo en texto plano)
+const DEFAULT_PIN_HASH = "b2c08e5b4d6a4e4e4b8d1f4e0f9a9e2c1b7e2c9d2a0c2a3c68c0c19b2c3f8a2a"; 
+// Nota: si quieres, luego lo cambiamos a otro PIN y recalculamos hash.
 
 const STORES = [
   { id: "san_pablo", name: "San Pablo" },
@@ -36,11 +42,16 @@ const dateInput = $("dateInput");
 const storeInput = $("storeInput");
 const cashInput = $("cashInput");
 const cardInput = $("cardInput");
+const ticketInput = $("ticketInput");
+const diffBox = $("diffBox");
 
 const btnSave = $("btnSave");
 const btnClear = $("btnClear");
 const btnDelete = $("btnDelete");
 const btnWhatsAppDay = $("btnWhatsAppDay");
+const btnCopyDay = $("btnCopyDay");
+const dayList = $("dayList");
+const dayHint = $("dayHint");
 const saveMsg = $("saveMsg");
 
 // Summary
@@ -53,11 +64,24 @@ const sumSA2 = $("sumSA2");
 const sumGlobal = $("sumGlobal");
 const sumGlobal2 = $("sumGlobal2");
 
+// Goals
+const goalDaily = $("goalDaily");
+const goalMonthly = $("goalMonthly");
+const btnSaveGoals = $("btnSaveGoals");
+const goalTodayPct = $("goalTodayPct");
+const goalTodayTxt = $("goalTodayTxt");
+const goalMonthPct = $("goalMonthPct");
+const goalMonthTxt = $("goalMonthTxt");
+
 // Reports
 const reportType = $("reportType");
 const reportStore = $("reportStore");
+const rangeFrom = $("rangeFrom");
+const rangeTo = $("rangeTo");
 const btnRefresh = $("btnRefresh");
 const btnWhatsAppReport = $("btnWhatsAppReport");
+const btnWhatsAppReportFull = $("btnWhatsAppReportFull");
+const btnExportCSV = $("btnExportCSV");
 
 const kpiCash = $("kpiCash");
 const kpiCard = $("kpiCard");
@@ -66,6 +90,13 @@ const kpiAvg = $("kpiAvg");
 
 const reportTableBody = $("reportTable").querySelector("tbody");
 const tableHint = $("tableHint");
+
+// Ranking
+const rankList = $("rankList");
+const bestStore = $("bestStore");
+const bestStoreTxt = $("bestStoreTxt");
+const worstStore = $("worstStore");
+const worstStoreTxt = $("worstStoreTxt");
 
 // Top controls
 const btnLogout = $("btnLogout");
@@ -82,9 +113,7 @@ let chartMix = null;
    INIT
 ------------------------- */
 applyTheme(settings.theme || "dark");
-initDateDefault();
-renderTodaySummary();
-refreshReports();
+initDefaults();
 
 btnLogin.addEventListener("click", doLogin);
 pinInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
@@ -101,28 +130,60 @@ btnLogout.addEventListener("click", () => {
 btnSave.addEventListener("click", onSave);
 btnClear.addEventListener("click", clearEntry);
 btnDelete.addEventListener("click", onDelete);
-btnWhatsAppDay.addEventListener("click", sendWhatsAppDay);
 
-btnRefresh.addEventListener("click", refreshReports);
-btnWhatsAppReport.addEventListener("click", sendWhatsAppReport);
+btnWhatsAppDay.addEventListener("click", () => openWhatsApp(buildWhatsAppDayText(getSelectedDate())));
+btnCopyDay.addEventListener("click", async () => {
+  const txt = buildWhatsAppDayText(getSelectedDate());
+  await copyToClipboard(txt);
+  toast(saveMsg, "Copiado ✅", true);
+});
 
-btnBackup.addEventListener("click", exportBackup);
-importFile.addEventListener("change", importBackup);
+btnSaveGoals.addEventListener("click", onSaveGoals);
 
 dateInput.addEventListener("change", () => {
-  renderTodaySummary();
   fillEntryIfExists();
+  renderTodaySummary();
+  renderDayHistory();
+  renderGoals();
 });
 storeInput.addEventListener("change", fillEntryIfExists);
 
-cashInput.addEventListener("input", () => normalizeMoneyInput(cashInput));
-cardInput.addEventListener("input", () => normalizeMoneyInput(cardInput));
+cashInput.addEventListener("input", () => { normalizeMoneyInput(cashInput); updateDiffBox(); });
+cardInput.addEventListener("input", () => { normalizeMoneyInput(cardInput); updateDiffBox(); });
+ticketInput.addEventListener("input", () => { normalizeMoneyInput(ticketInput); updateDiffBox(); });
+
+btnRefresh.addEventListener("click", refreshReports);
+btnWhatsAppReport.addEventListener("click", () => sendWhatsAppReport(false));
+btnWhatsAppReportFull.addEventListener("click", () => sendWhatsAppReport(true));
+btnExportCSV.addEventListener("click", exportCSV);
+
+btnBackup.addEventListener("click", exportBackup);
+importFile.addEventListener("change", importBackup);
 
 if (settings.isLogged) showApp();
 else showLogin();
 
 /* -------------------------
-   VIEWS
+   Defaults
+------------------------- */
+function initDefaults(){
+  const today = toISODate(new Date());
+  if (!settings.goals) settings.goals = { daily: 0, monthly: 0 };
+
+  // Rango por defecto: mes actual
+  const firstDay = today.slice(0,7) + "-01";
+  dateInput.value = today;
+  rangeFrom.value = firstDay;
+  rangeTo.value = today;
+
+  goalDaily.value = settings.goals.daily ? String(settings.goals.daily).replace(".", ",") : "";
+  goalMonthly.value = settings.goals.monthly ? String(settings.goals.monthly).replace(".", ",") : "";
+}
+
+function getSelectedDate(){ return dateInput.value; }
+
+/* -------------------------
+   Views
 ------------------------- */
 function showLogin(){
   loginView.classList.remove("hidden");
@@ -135,20 +196,23 @@ function showLogin(){
 function showApp(){
   loginView.classList.add("hidden");
   appView.classList.remove("hidden");
-  initDateDefault();
   fillEntryIfExists();
   renderTodaySummary();
+  renderDayHistory();
+  renderGoals();
   refreshReports();
 }
 
 /* -------------------------
-   LOGIN
+   Login (hash)
 ------------------------- */
-function doLogin(){
+async function doLogin(){
   const pin = (pinInput.value || "").trim();
-  const validPin = settings.pin || DEFAULT_PIN;
+  const validHash = settings.pinHash || DEFAULT_PIN_HASH;
 
-  if (pin === validPin){
+  const enteredHash = await sha256Hex(pin);
+
+  if (enteredHash === validHash){
     settings.isLogged = true;
     saveSettings();
     loginMsg.className = "msg ok";
@@ -160,15 +224,23 @@ function doLogin(){
   }
 }
 
+async function sha256Hex(text){
+  const enc = new TextEncoder();
+  const data = enc.encode(text);
+  const hashBuf = await crypto.subtle.digest("SHA-256", data);
+  const hashArr = Array.from(new Uint8Array(hashBuf));
+  return hashArr.map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
 /* -------------------------
-   THEME
+   Theme
 ------------------------- */
 function toggleTheme(){
   const next = (document.documentElement.getAttribute("data-theme") === "light") ? "dark" : "light";
   applyTheme(next);
   settings.theme = next;
   saveSettings();
-  refreshReports(); // refresca colores charts
+  refreshReports();
 }
 
 function applyTheme(theme){
@@ -176,7 +248,7 @@ function applyTheme(theme){
 }
 
 /* -------------------------
-   STORAGE
+   Storage
 ------------------------- */
 function loadState(){
   try{
@@ -189,36 +261,27 @@ function loadState(){
     return { entries: {} };
   }
 }
-
-function saveState(){
-  localStorage.setItem(APP_KEY, JSON.stringify(state));
-}
+function saveState(){ localStorage.setItem(APP_KEY, JSON.stringify(state)); }
 
 function loadSettings(){
   try{
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { isLogged:false, pin: DEFAULT_PIN, theme:"dark" };
+    if (!raw) return { isLogged:false, theme:"dark", goals:{daily:0, monthly:0}, pinHash: DEFAULT_PIN_HASH };
     const parsed = JSON.parse(raw);
-    if (!parsed.pin) parsed.pin = DEFAULT_PIN;
     if (typeof parsed.isLogged !== "boolean") parsed.isLogged = false;
     if (!parsed.theme) parsed.theme = "dark";
+    if (!parsed.goals) parsed.goals = { daily:0, monthly:0 };
+    if (!parsed.pinHash) parsed.pinHash = DEFAULT_PIN_HASH;
     return parsed;
   }catch{
-    return { isLogged:false, pin: DEFAULT_PIN, theme:"dark" };
+    return { isLogged:false, theme:"dark", goals:{daily:0, monthly:0}, pinHash: DEFAULT_PIN_HASH };
   }
 }
-
-function saveSettings(){
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-}
+function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
 
 /* -------------------------
-   HELPERS
+   Helpers
 ------------------------- */
-function initDateDefault(){
-  dateInput.value = toISODate(new Date());
-}
-
 function toISODate(d){
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
@@ -232,34 +295,26 @@ function parseMoney(str){
   const n = Number(clean);
   return Number.isFinite(n) ? n : 0;
 }
+function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
 
 function formatMoney(n){
   const v = Number(n || 0);
   return v.toLocaleString("es-ES", { style:"currency", currency:"EUR" });
 }
 
-function normalizeMoneyInput(inputEl){
-  inputEl.value = String(inputEl.value || "").replace(/[^\d,.-]/g,"");
+function normalizeMoneyInput(el){
+  el.value = String(el.value || "").replace(/[^\d,.-]/g,"");
 }
 
-function round2(n){
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
+function keyOf(dateISO, storeId){ return `${dateISO}__${storeId}`; }
+function getEntry(dateISO, storeId){ return state.entries[keyOf(dateISO, storeId)] || null; }
 
-function keyOf(dateISO, storeId){
-  return `${dateISO}__${storeId}`;
-}
-
-function getEntry(dateISO, storeId){
-  return state.entries[keyOf(dateISO, storeId)] || null;
-}
-
-function setEntry(dateISO, storeId, cash, card){
+function setEntry(dateISO, storeId, cash, card, ticket){
   state.entries[keyOf(dateISO, storeId)] = {
     date: dateISO,
     store: storeId,
-    cash,
-    card,
+    cash, card,
+    ticket,                 // ✅ nuevo
     updatedAt: new Date().toISOString()
   };
   saveState();
@@ -270,13 +325,8 @@ function deleteEntry(dateISO, storeId){
   saveState();
 }
 
-function storeName(id){
-  return STORES.find(s => s.id === id)?.name || id;
-}
+function storeName(id){ return STORES.find(s => s.id === id)?.name || id; }
 
-/* -------------------------
-   WEEKDAY ES
-------------------------- */
 function weekdayES(dateISO){
   const d = new Date(dateISO + "T00:00:00");
   const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
@@ -286,8 +336,27 @@ function dailyLabelWithWeekday(dateISO){
   return `${dateISO} (${weekdayES(dateISO)})`;
 }
 
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function diffValue(ticket, total){
+  return round2((ticket || 0) - (total || 0));
+}
+
+function formatDiff(d){
+  const v = Number(d || 0);
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${v.toLocaleString("es-ES", { minimumFractionDigits:2, maximumFractionDigits:2 })} €`;
+}
+
 /* -------------------------
-   ENTRY FORM
+   Entry
 ------------------------- */
 function fillEntryIfExists(){
   const dateISO = dateInput.value;
@@ -297,17 +366,38 @@ function fillEntryIfExists(){
   if (e){
     cashInput.value = String(e.cash ?? "").replace(".", ",");
     cardInput.value = String(e.card ?? "").replace(".", ",");
+    ticketInput.value = String(e.ticket ?? "").replace(".", ",");
   } else {
     cashInput.value = "";
     cardInput.value = "";
+    ticketInput.value = "";
   }
+  updateDiffBox();
+
   saveMsg.textContent = "";
   saveMsg.className = "msg";
+}
+
+function updateDiffBox(){
+  const cash = round2(parseMoney(cashInput.value));
+  const card = round2(parseMoney(cardInput.value));
+  const ticket = round2(parseMoney(ticketInput.value));
+  const total = cash + card;
+  const d = diffValue(ticket, total);
+
+  if (!ticketInput.value && !cashInput.value && !cardInput.value){
+    diffBox.textContent = "—";
+    return;
+  }
+
+  diffBox.textContent = `${formatDiff(d)}  (Ticket ${formatMoney(ticket)} - Total ${formatMoney(total)})`;
 }
 
 function clearEntry(){
   cashInput.value = "";
   cardInput.value = "";
+  ticketInput.value = "";
+  updateDiffBox();
   saveMsg.textContent = "";
   saveMsg.className = "msg";
 }
@@ -315,65 +405,75 @@ function clearEntry(){
 function onSave(){
   const dateISO = dateInput.value;
   const storeId = storeInput.value;
-
   if (!dateISO){
-    saveMsg.className = "msg err";
-    saveMsg.textContent = "Selecciona una fecha.";
+    toast(saveMsg, "Selecciona una fecha.", false);
     return;
   }
 
   const cash = round2(parseMoney(cashInput.value));
   const card = round2(parseMoney(cardInput.value));
+  const ticket = round2(parseMoney(ticketInput.value));
 
-  setEntry(dateISO, storeId, cash, card);
+  setEntry(dateISO, storeId, cash, card, ticket);
 
-  saveMsg.className = "msg ok";
-  saveMsg.textContent = `Guardado ✅ (${storeName(storeId)} — ${formatMoney(cash)} efectivo, ${formatMoney(card)} tarjeta)`;
+  const total = cash + card;
+  const d = diffValue(ticket, total);
+
+  toast(
+    saveMsg,
+    `Guardado ✅ (${storeName(storeId)} — Total ${formatMoney(total)} · Ticket ${formatMoney(ticket)} · Dif ${formatDiff(d)})`,
+    true
+  );
 
   renderTodaySummary();
+  renderDayHistory();
+  renderGoals();
   refreshReports();
 }
 
 function onDelete(){
   const dateISO = dateInput.value;
   const storeId = storeInput.value;
-
-  const e = getEntry(dateISO, storeId);
-  if (!e){
-    saveMsg.className = "msg err";
-    saveMsg.textContent = "No existe registro para borrar.";
+  if (!getEntry(dateISO, storeId)){
+    toast(saveMsg, "No existe registro para borrar.", false);
     return;
   }
 
   deleteEntry(dateISO, storeId);
-  saveMsg.className = "msg ok";
-  saveMsg.textContent = "Registro borrado ✅";
+  toast(saveMsg, "Registro borrado ✅", true);
 
   fillEntryIfExists();
   renderTodaySummary();
+  renderDayHistory();
+  renderGoals();
   refreshReports();
 }
 
 /* -------------------------
-   TODAY SUMMARY
+   Day summary + history
 ------------------------- */
 function computeDayTotals(dateISO){
   const byStore = {};
-  let gCash = 0, gCard = 0;
+  let gCash = 0, gCard = 0, gTicket = 0;
 
   for (const s of STORES){
     const e = getEntry(dateISO, s.id);
     const cash = e?.cash || 0;
     const card = e?.card || 0;
+    const ticket = e?.ticket || 0;
     const total = cash + card;
-    byStore[s.id] = { cash, card, total };
-    gCash += cash;
-    gCard += card;
+    const diff = diffValue(ticket, total);
+
+    byStore[s.id] = { cash, card, ticket, total, diff };
+    gCash += cash; gCard += card; gTicket += ticket;
   }
+
+  const gTotal = gCash + gCard;
+  const gDiff = diffValue(gTicket, gTotal);
 
   return {
     byStore,
-    global: { cash: gCash, card: gCard, total: gCash + gCard }
+    global: { cash:gCash, card:gCard, ticket:gTicket, total:gTotal, diff:gDiff }
   };
 }
 
@@ -381,31 +481,118 @@ function renderTodaySummary(){
   const dateISO = dateInput.value;
   const totals = computeDayTotals(dateISO);
 
-  const sp = totals.byStore.san_pablo || { cash:0, card:0, total:0 };
-  const sl = totals.byStore.san_lesmes || { cash:0, card:0, total:0 };
-  const sa = totals.byStore.santiago || { cash:0, card:0, total:0 };
+  const sp = totals.byStore.san_pablo;
+  const sl = totals.byStore.san_lesmes;
+  const sa = totals.byStore.santiago;
+  const g  = totals.global;
 
   sumSP.textContent = formatMoney(sp.total);
-  sumSP2.textContent = `Efe: ${formatMoney(sp.cash)} · Tar: ${formatMoney(sp.card)}`;
+  sumSP2.textContent = `Efe: ${formatMoney(sp.cash)} · Tar: ${formatMoney(sp.card)} · Ticket: ${formatMoney(sp.ticket)} · Dif: ${formatDiff(sp.diff)}`;
 
   sumSL.textContent = formatMoney(sl.total);
-  sumSL2.textContent = `Efe: ${formatMoney(sl.cash)} · Tar: ${formatMoney(sl.card)}`;
+  sumSL2.textContent = `Efe: ${formatMoney(sl.cash)} · Tar: ${formatMoney(sl.card)} · Ticket: ${formatMoney(sl.ticket)} · Dif: ${formatDiff(sl.diff)}`;
 
   sumSA.textContent = formatMoney(sa.total);
-  sumSA2.textContent = `Efe: ${formatMoney(sa.cash)} · Tar: ${formatMoney(sa.card)}`;
+  sumSA2.textContent = `Efe: ${formatMoney(sa.cash)} · Tar: ${formatMoney(sa.card)} · Ticket: ${formatMoney(sa.ticket)} · Dif: ${formatDiff(sa.diff)}`;
 
-  sumGlobal.textContent = formatMoney(totals.global.total);
-  sumGlobal2.textContent = `Efectivo: ${formatMoney(totals.global.cash)} · Tarjeta: ${formatMoney(totals.global.card)}`;
+  sumGlobal.textContent = formatMoney(g.total);
+  sumGlobal2.textContent = `Efectivo: ${formatMoney(g.cash)} · Tarjeta: ${formatMoney(g.card)} · Ticket: ${formatMoney(g.ticket)} · Dif: ${formatDiff(g.diff)}`;
+}
+
+function renderDayHistory(){
+  const dateISO = dateInput.value;
+  dayList.innerHTML = "";
+
+  const items = STORES.map(s => {
+    const e = getEntry(dateISO, s.id);
+    const cash = e?.cash || 0;
+    const card = e?.card || 0;
+    const ticket = e?.ticket || 0;
+    const total = cash + card;
+    const diff = diffValue(ticket, total);
+
+    return {
+      store: s.id,
+      name: s.name,
+      cash, card, ticket,
+      total, diff,
+      exists: !!e
+    };
+  });
+
+  const existsCount = items.filter(x => x.exists).length;
+  dayHint.textContent = `${dateISO} (${weekdayES(dateISO)}) · registros: ${existsCount}/3`;
+
+  for (const it of items){
+    const div = document.createElement("div");
+    div.className = "dayitem";
+    div.innerHTML = `
+      <div>
+        <div class="k">${escapeHtml(it.name)}</div>
+        <div class="muted small">Total ${formatMoney(it.total)} · Ticket ${formatMoney(it.ticket)} · Dif ${formatDiff(it.diff)}</div>
+      </div>
+      <div class="v">${formatMoney(it.total)}</div>
+    `;
+    div.addEventListener("click", () => {
+      storeInput.value = it.store;
+      fillEntryIfExists();
+      cashInput.focus();
+    });
+    dayList.appendChild(div);
+  }
 }
 
 /* -------------------------
-   REPORTS
+   Goals
+------------------------- */
+function onSaveGoals(){
+  const d = round2(parseMoney(goalDaily.value));
+  const m = round2(parseMoney(goalMonthly.value));
+  settings.goals = { daily: d, monthly: m };
+  saveSettings();
+  renderGoals();
+  toast(saveMsg, "Objetivos guardados ✅", true);
+}
+
+function renderGoals(){
+  const dateISO = dateInput.value;
+  const todayTotals = computeDayTotals(dateISO).global.total;
+
+  const monthKey = dateISO.slice(0,7);
+  const monthRows = buildReport("daily", "global", monthKey + "-01", monthKey + "-31");
+  const monthTotal = monthRows.reduce((a,r)=>a + r.total, 0);
+
+  const gd = Number(settings.goals?.daily || 0);
+  if (gd > 0){
+    const pct = Math.max(0, Math.min(100, (todayTotals / gd) * 100));
+    goalTodayPct.textContent = pct.toFixed(1) + "%";
+    goalTodayTxt.textContent = `${formatMoney(todayTotals)} / ${formatMoney(gd)}`;
+  } else {
+    goalTodayPct.textContent = "—";
+    goalTodayTxt.textContent = "Define objetivo diario";
+  }
+
+  const gm = Number(settings.goals?.monthly || 0);
+  if (gm > 0){
+    const pct = Math.max(0, Math.min(100, (monthTotal / gm) * 100));
+    goalMonthPct.textContent = pct.toFixed(1) + "%";
+    goalMonthTxt.textContent = `${formatMoney(monthTotal)} / ${formatMoney(gm)}`;
+  } else {
+    goalMonthPct.textContent = "—";
+    goalMonthTxt.textContent = "Define objetivo mensual";
+  }
+}
+
+/* -------------------------
+   Reports (no incluye ticket por ahora; si quieres lo meto en tabla)
 ------------------------- */
 function refreshReports(){
   const type = reportType.value;
   const store = reportStore.value;
+  const from = rangeFrom.value || null;
+  const to = rangeTo.value || null;
 
-  const rows = buildReport(type, store);
+  const rows = buildReport(type, store, from, to);
 
   const sum = rows.reduce((acc,r)=>({
     cash: acc.cash + r.cash,
@@ -434,17 +621,24 @@ function refreshReports(){
   }
 
   tableHint.textContent = rows.length
-    ? `Mostrando ${rows.length} periodos.`
-    : "No hay datos aún. Empieza guardando ventas.";
+    ? `Mostrando ${rows.length} periodos. Rango: ${from || "—"} → ${to || "—"}`
+    : "No hay datos en ese rango.";
 
   renderCharts(rows);
+  renderRanking(from, to);
 }
 
-function buildReport(type, store){
+function buildReport(type, store, from=null, to=null){
   const all = Object.values(state.entries || []);
   if (!all.length) return [];
 
-  const filtered = all.filter(e => store === "global" ? true : e.store === store);
+  const filtered = all.filter(e => {
+    if (store !== "global" && e.store !== store) return false;
+    if (from && e.date < from) return false;
+    if (to && e.date > to) return false;
+    return true;
+  });
+
   const map = new Map();
 
   for (const e of filtered){
@@ -458,15 +652,14 @@ function buildReport(type, store){
       periodLabel = dailyLabelWithWeekday(date);
     } else if (type === "weekly"){
       period = isoWeekLabel(date);
-      periodLabel = period; // simple
+      periodLabel = weekRangeLabel(date);
     } else {
       period = monthLabel(date);
-      periodLabel = period;
+      periodLabel = monthPrettyLabel(date);
     }
 
     const prev = map.get(period) || {
-      period,
-      periodLabel,
+      period, periodLabel,
       cash:0, card:0, total:0,
       sortKey: periodSortKey(type, date)
     };
@@ -510,20 +703,34 @@ function estimateDaysCovered(rows, type){
   return rows.length;
 }
 
-/* Week / Month labels */
+/* Labels */
 function monthLabel(dateISO){
+  const d = new Date(dateISO + "T00:00:00");
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function monthPrettyLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
-  return `${y}-${m}`;
+  return `Mes ${y}-${m}`;
 }
-
 function isoWeekLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
   const w = isoWeek(d);
   return `${w.year}-W${String(w.week).padStart(2,"0")}`;
 }
-
+function weekRangeLabel(dateISO){
+  const d = new Date(dateISO + "T00:00:00");
+  const w = isoWeek(d);
+  const mon = w.mondayISO;
+  const sun = addDaysISO(mon, 6);
+  return `Semana ${w.year}-W${String(w.week).padStart(2,"0")} (${mon}→${sun})`;
+}
+function addDaysISO(dateISO, days){
+  const d = new Date(dateISO + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
 function isoWeek(date){
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -541,7 +748,7 @@ function isoWeek(date){
 }
 
 /* -------------------------
-   CHARTS
+   Charts
 ------------------------- */
 function renderCharts(rows){
   const labels = rows.map(r => r.periodLabel);
@@ -568,9 +775,7 @@ function baseChartOptions(){
   const isLight = document.documentElement.getAttribute("data-theme") === "light";
   return {
     responsive: true,
-    plugins: {
-      legend: { labels: { color: isLight ? "#101828" : "#eaf0ff" } }
-    },
+    plugins: { legend: { labels: { color: isLight ? "#101828" : "#eaf0ff" } } },
     scales: {
       x: { ticks: { color: isLight ? "#101828" : "#eaf0ff" }, grid: { color: "rgba(255,255,255,.06)" } },
       y: { ticks: { color: isLight ? "#101828" : "#eaf0ff" }, grid: { color: "rgba(255,255,255,.06)" } },
@@ -579,15 +784,40 @@ function baseChartOptions(){
 }
 
 /* -------------------------
-   WHATSAPP
+   Ranking
 ------------------------- */
-function sendWhatsAppDay(){
-  const dateISO = dateInput.value;
-  if (!dateISO){
-    alert("Selecciona una fecha.");
-    return;
+function renderRanking(from, to){
+  const sums = STORES.map(s => {
+    const rows = buildReport("daily", s.id, from, to);
+    const total = rows.reduce((a,r)=>a + r.total, 0);
+    return { id: s.id, name: s.name, total };
+  }).sort((a,b)=> b.total - a.total);
+
+  rankList.innerHTML = "";
+  for (const it of sums){
+    const div = document.createElement("div");
+    div.className = "rankitem";
+    div.innerHTML = `
+      <div class="left"><div class="dot"></div><div><b>${escapeHtml(it.name)}</b></div></div>
+      <div>${formatMoney(it.total)}</div>
+    `;
+    rankList.appendChild(div);
   }
 
+  const best = sums[0];
+  const worst = sums[sums.length - 1];
+
+  bestStore.textContent = best ? best.name : "—";
+  bestStoreTxt.textContent = best ? `Total: ${formatMoney(best.total)}` : "—";
+
+  worstStore.textContent = worst ? worst.name : "—";
+  worstStoreTxt.textContent = worst ? `Total: ${formatMoney(worst.total)}` : "—";
+}
+
+/* -------------------------
+   WhatsApp
+------------------------- */
+function buildWhatsAppDayText(dateISO){
   const totals = computeDayTotals(dateISO);
   const dayName = weekdayES(dateISO);
 
@@ -596,40 +826,35 @@ function sendWhatsAppDay(){
   const sa = totals.byStore.santiago;
   const g  = totals.global;
 
-  const text = [
+  return [
     `📊 *RESUMEN DEL DÍA*`,
     `📅 ${dateISO} (${dayName})`,
     ``,
     `🏪 *San Pablo*`,
-    `💶 Efectivo: ${formatMoney(sp.cash)}`,
-    `💳 Tarjeta: ${formatMoney(sp.card)}`,
-    `🧾 Total: ${formatMoney(sp.total)}`,
+    `🧾 Total: ${formatMoney(sp.total)} · Ticket: ${formatMoney(sp.ticket)} · Dif: ${formatDiff(sp.diff)}`,
+    `💶 Efectivo: ${formatMoney(sp.cash)} · 💳 Tarjeta: ${formatMoney(sp.card)}`,
     ``,
     `🏪 *San Lesmes*`,
-    `💶 Efectivo: ${formatMoney(sl.cash)}`,
-    `💳 Tarjeta: ${formatMoney(sl.card)}`,
-    `🧾 Total: ${formatMoney(sl.total)}`,
+    `🧾 Total: ${formatMoney(sl.total)} · Ticket: ${formatMoney(sl.ticket)} · Dif: ${formatDiff(sl.diff)}`,
+    `💶 Efectivo: ${formatMoney(sl.cash)} · 💳 Tarjeta: ${formatMoney(sl.card)}`,
     ``,
     `🏪 *Santiago*`,
-    `💶 Efectivo: ${formatMoney(sa.cash)}`,
-    `💳 Tarjeta: ${formatMoney(sa.card)}`,
-    `🧾 Total: ${formatMoney(sa.total)}`,
+    `🧾 Total: ${formatMoney(sa.total)} · Ticket: ${formatMoney(sa.ticket)} · Dif: ${formatDiff(sa.diff)}`,
+    `💶 Efectivo: ${formatMoney(sa.cash)} · 💳 Tarjeta: ${formatMoney(sa.card)}`,
     ``,
     `🌍 *GLOBAL (3 tiendas)*`,
-    `💶 Efectivo global: ${formatMoney(g.cash)}`,
-    `💳 Tarjeta global: ${formatMoney(g.card)}`,
-    `🧾 Total global: ${formatMoney(g.total)}`
+    `🧾 Total global: ${formatMoney(g.total)} · Ticket global: ${formatMoney(g.ticket)} · Dif: ${formatDiff(g.diff)}`,
+    `💶 Efectivo global: ${formatMoney(g.cash)} · 💳 Tarjeta global: ${formatMoney(g.card)}`
   ].join("\n");
-
-  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(text);
-  window.open(url, "_blank");
 }
 
-function sendWhatsAppReport(){
-  const type = reportType.value;     // daily/weekly/monthly
-  const store = reportStore.value;   // global/tienda
+function sendWhatsAppReport(full=false){
+  const type = reportType.value;
+  const store = reportStore.value;
+  const from = rangeFrom.value || null;
+  const to = rangeTo.value || null;
 
-  const rows = buildReport(type, store);
+  const rows = buildReport(type, store, from, to);
   if (!rows.length){
     alert("No hay datos para este reporte.");
     return;
@@ -644,44 +869,88 @@ function sendWhatsAppReport(){
     total: acc.total + r.total
   }), {cash:0, card:0, total:0});
 
-  const lastRows = rows.slice(-10);
+  const list = full ? rows : rows.slice(-10);
   const first = rows[0].periodLabel;
   const last = rows[rows.length - 1].periodLabel;
 
   const lines = [];
   lines.push(`📈 *REPORTE ${titleType}*`);
   lines.push(`🏷️ ${titleStore}`);
+  if (from || to) lines.push(`📌 Rango: ${from || "—"} → ${to || "—"}`);
   lines.push(``);
   lines.push(`💶 Efectivo: ${formatMoney(sum.cash)}`);
   lines.push(`💳 Tarjeta: ${formatMoney(sum.card)}`);
   lines.push(`🧾 TOTAL: ${formatMoney(sum.total)}`);
   lines.push(``);
-  lines.push(`🗂️ *Últimos ${lastRows.length} periodos*:`);
+  lines.push(`🗂️ *${full ? "Reporte completo" : "Últimos " + list.length + " periodos"}*:`);
 
-  for (const r of lastRows){
+  for (const r of list){
     lines.push(`• ${r.periodLabel} — Efe ${formatMoney(r.cash)} · Tar ${formatMoney(r.card)} · Total ${formatMoney(r.total)}`);
   }
 
   lines.push(``);
-  lines.push(`📌 Rango: ${first} → ${last}`);
+  lines.push(`📌 Periodos: ${first} → ${last}`);
 
-  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(lines.join("\n"));
+  openWhatsApp(lines.join("\n"));
+}
+
+function openWhatsApp(text){
+  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(text);
   window.open(url, "_blank");
 }
 
 /* -------------------------
-   BACKUP
+   Export CSV
+------------------------- */
+function exportCSV(){
+  const type = reportType.value;
+  const store = reportStore.value;
+  const from = rangeFrom.value || null;
+  const to = rangeTo.value || null;
+
+  const rows = buildReport(type, store, from, to);
+  if (!rows.length){
+    alert("No hay datos para exportar.");
+    return;
+  }
+
+  const header = ["Periodo","Efectivo","Tarjeta","Total"];
+  const lines = [header.join(";")];
+
+  for (const r of rows){
+    lines.push([
+      `"${r.periodLabel.replaceAll('"','""')}"`,
+      r.cash.toFixed(2).replace(".", ","),
+      r.card.toFixed(2).replace(".", ","),
+      r.total.toFixed(2).replace(".", ",")
+    ].join(";"));
+  }
+
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `reporte_${type}_${store}_${(from||"")}_${(to||"")}.csv`.replaceAll("__","_");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* -------------------------
+   Backup JSON
 ------------------------- */
 function exportBackup(){
   const payload = {
-    meta: { app: "ARSLAN_FACTURACION_V1", exportedAt: new Date().toISOString() },
+    meta: { app: "ARSLAN_FACTURACION_PRO_V3", exportedAt: new Date().toISOString() },
     state,
-    settings: { ...settings, isLogged: false }
+    settings: { ...settings, isLogged:false } // no exporta login activo
   };
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement("a");
   a.href = url;
   a.download = `backup_arslan_facturacion_${toISODate(new Date())}.json`;
@@ -706,13 +975,16 @@ function importBackup(){
 
       if (payload.settings){
         const keepTheme = settings.theme;
-        settings = { ...settings, ...payload.settings, isLogged: true, theme: keepTheme };
+        const keepPinHash = settings.pinHash || DEFAULT_PIN_HASH; // protege el pin
+        settings = { ...settings, ...payload.settings, isLogged:false, theme:keepTheme, pinHash: keepPinHash };
         saveSettings();
       }
 
-      initDateDefault();
+      initDefaults();
       fillEntryIfExists();
       renderTodaySummary();
+      renderDayHistory();
+      renderGoals();
       refreshReports();
       alert("Importado correctamente ✅");
     }catch(err){
@@ -725,14 +997,22 @@ function importBackup(){
 }
 
 /* -------------------------
-   UTILS
+   UX
 ------------------------- */
-function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+function toast(el, text, ok=true){
+  el.className = "msg " + (ok ? "ok" : "err");
+  el.textContent = text;
+}
+async function copyToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch{
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
 }
 
