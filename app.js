@@ -1,7 +1,8 @@
 /* =========================
    ARSLAN — Facturación Diaria PRO (Pack C)
    - Mantiene TODAS las funciones
-   - Mejoras: móvil (tabs), gráficos (3), tema blanco por defecto
+   - Mejoras: móvil (tabs + UX), gráficos (3), tema blanco por defecto
+   - Mejoras sutiles: Enter → siguiente, auto-select inputs, botón subir, resalta tienda rápida, colores dif
 ========================= */
 
 const APP_KEY = "ARSLAN_FACTURACION_PACKC_V1";
@@ -34,6 +35,13 @@ const loginMsg = $("loginMsg");
 
 const dateInput = $("dateInput");
 const storeInput = $("storeInput");
+
+const btnToday = $("btnToday");
+const btnYesterday = $("btnYesterday");
+const btnTomorrow = $("btnTomorrow");
+const btnPrevDay = $("btnPrevDay");
+const btnNextDay = $("btnNextDay");
+
 const cashInput = $("cashInput");
 const cardInput = $("cardInput");
 const ticketInput = $("ticketInput");
@@ -121,6 +129,8 @@ const importFile = $("importFile");
 const btnTheme = $("btnTheme");
 const btnThemeLogin = $("btnThemeLogin");
 
+const btnScrollTop = $("btnScrollTop");
+
 /* Mobile tabs */
 const mobileTabs = $("mobileTabs");
 const tabButtons = mobileTabs ? Array.from(mobileTabs.querySelectorAll(".tab")) : [];
@@ -135,6 +145,7 @@ applyTheme(settings.theme || "light"); // ✅ blanco por defecto
 initDefaults();
 bindEvents();
 initMobileTabs();
+initUX();
 
 if (settings.isLogged) showApp();
 else showLogin();
@@ -153,6 +164,7 @@ function bindEvents(){
     showLogin();
   });
 
+  // Fecha + tienda
   dateInput.addEventListener("change", () => {
     fillEntryIfExists();
     renderTodaySummary();
@@ -161,7 +173,30 @@ function bindEvents(){
     refresh7Days();
     refreshReports();
   });
-  storeInput.addEventListener("change", fillEntryIfExists);
+
+  storeInput.addEventListener("change", () => {
+    fillEntryIfExists();
+    highlightStoreQuick(storeInput.value);
+  });
+
+  // Botones de fecha (UX)
+  btnToday?.addEventListener("click", () => setDateISO(toISODate(new Date())));
+  btnYesterday?.addEventListener("click", () => setDateISO(addDaysISO(dateInput.value, -1)));
+  btnTomorrow?.addEventListener("click", () => setDateISO(addDaysISO(dateInput.value, 1)));
+  btnPrevDay?.addEventListener("click", () => setDateISO(addDaysISO(dateInput.value, -1)));
+  btnNextDay?.addEventListener("click", () => setDateISO(addDaysISO(dateInput.value, 1)));
+
+  // Tienda rápida
+  document.querySelectorAll(".storebtn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const v = btn.dataset.store;
+      if (!v) return;
+      storeInput.value = v;
+      fillEntryIfExists();
+      updateDiffBoxes();
+      highlightStoreQuick(v);
+    });
+  });
 
   const moneyInputs = [cashInput, cardInput, ticketInput, expensesInput, withdrawalsInput, extraIncomeInput, cashCountedInput];
   for (const el of moneyInputs){
@@ -192,7 +227,10 @@ function bindEvents(){
   btnBackup.addEventListener("click", exportBackup);
   importFile.addEventListener("change", importBackup);
 
-  // Re-render charts on theme change (after applyTheme)
+  // FAB subir
+  btnScrollTop?.addEventListener("click", () => {
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch { window.scrollTo(0,0); }
+  });
 }
 
 /* ---------- Mobile Tabs ---------- */
@@ -202,16 +240,58 @@ function initMobileTabs(){
   function activateTab(id){
     tabButtons.forEach(b => b.classList.toggle("active", b.dataset.tab === id));
     tabSections.forEach(s => s.classList.toggle("active", s.id === id));
-    // scroll to top of content area
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
   }
 
-  tabButtons.forEach(btn => {
-    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
-  });
+  tabButtons.forEach(btn => btn.addEventListener("click", () => activateTab(btn.dataset.tab)));
 
   // default
   activateTab("tab-entry");
+}
+
+/* ---------- UX sutil ---------- */
+function initUX(){
+  // Auto-select números al focus
+  document.querySelectorAll("input.money").forEach(inp=>{
+    inp.addEventListener("focus", () => {
+      try { inp.select(); } catch {}
+    });
+  });
+
+  // Enter -> siguiente campo (solo money + notes)
+  const order = [
+    cashInput, cardInput, ticketInput,
+    expensesInput, withdrawalsInput, extraIncomeInput, cashCountedInput,
+    notesInput
+  ];
+  order.forEach((el, idx)=>{
+    el.addEventListener("keydown", (e)=>{
+      if (e.key === "Enter"){
+        // en textarea dejamos Enter normal (saltos)
+        if (el.tagName.toLowerCase() === "textarea") return;
+        e.preventDefault();
+        const next = order[idx+1];
+        if (next) next.focus();
+        else btnSave.focus();
+      }
+    });
+  });
+
+  // Mostrar FAB subir cuando bajas
+  window.addEventListener("scroll", () => {
+    if (!btnScrollTop) return;
+    const show = window.scrollY > 500;
+    btnScrollTop.classList.toggle("show", show);
+  });
+
+  // Inicial resaltar tienda
+  highlightStoreQuick(storeInput.value);
+}
+
+function highlightStoreQuick(storeId){
+  document.querySelectorAll(".storebtn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.store === storeId);
+  });
 }
 
 /* ---------- Defaults ---------- */
@@ -245,6 +325,16 @@ function initDefaults(){
 
 function getSelectedDate(){ return dateInput.value; }
 
+function setDateISO(iso){
+  dateInput.value = iso;
+  fillEntryIfExists();
+  renderTodaySummary();
+  renderDayHistory();
+  renderGoals();
+  refresh7Days();
+  refreshReports();
+}
+
 /* ---------- Views ---------- */
 function showLogin(){
   loginView.classList.remove("hidden");
@@ -264,6 +354,7 @@ function showApp(){
   renderGoals();
   refresh7Days();
   refreshReports();
+  highlightStoreQuick(storeInput.value);
 }
 
 /* ---------- Theme ---------- */
@@ -273,11 +364,10 @@ function toggleTheme(){
   applyTheme(next);
   settings.theme = next;
   saveSettings();
-  refreshReports(); // re-dibujar charts con colores de texto correctos
+  refreshReports();
 }
 
 function applyTheme(theme){
-  // en css: :root es light, dark está bajo [data-theme="dark"]
   if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
   else document.documentElement.removeAttribute("data-theme");
 }
@@ -300,94 +390,6 @@ async function doLogin(){
   }
 }
 
-async function sha256Hex(text){
-  try{
-    if (crypto?.subtle?.digest){
-      const enc = new TextEncoder();
-      const data = enc.encode(text);
-      const hashBuf = await crypto.subtle.digest("SHA-256", data);
-      const hashArr = Array.from(new Uint8Array(hashBuf));
-      return hashArr.map(b => b.toString(16).padStart(2,"0")).join("");
-    }
-  }catch(e){}
-  return sha256Fallback(text);
-}
-
-/* SHA-256 fallback JS puro (file://) */
-function sha256Fallback(ascii){
-  function rightRotate(value, amount){ return (value>>>amount) | (value<<(32-amount)); }
-  const mathPow = Math.pow;
-  const maxWord = mathPow(2, 32);
-  let result = "";
-
-  const words = [];
-  const asciiBitLength = ascii.length * 8;
-
-  let hash = sha256Fallback.h = sha256Fallback.h || [];
-  let k = sha256Fallback.k = sha256Fallback.k || [];
-  let primeCounter = k.length;
-
-  const isComposite = {};
-  for (let candidate = 2; primeCounter < 64; candidate++){
-    if (!isComposite[candidate]){
-      for (let i = 0; i < 313; i += candidate) isComposite[i] = candidate;
-      hash[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
-      k[primeCounter++] = (mathPow(candidate, 1/3) * maxWord) | 0;
-    }
-  }
-
-  ascii += "\x80";
-  while (ascii.length % 64 - 56) ascii += "\x00";
-  for (let i = 0; i < ascii.length; i++){
-    const j = ascii.charCodeAt(i);
-    words[i>>2] |= j << ((3 - i)%4)*8;
-  }
-  words[words.length] = ((asciiBitLength / maxWord) | 0);
-  words[words.length] = (asciiBitLength);
-
-  for (let j = 0; j < words.length;){
-    const w = words.slice(j, j += 16);
-    const oldHash = hash.slice(0);
-
-    for (let i = 0; i < 64; i++){
-      const w15 = w[i - 15], w2 = w[i - 2];
-
-      const a = hash[0], e = hash[4];
-      const temp1 = (hash[7]
-        + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
-        + ((e & hash[5]) ^ ((~e) & hash[6]))
-        + k[i]
-        + (w[i] = (i < 16) ? w[i] : (
-          w[i - 16]
-          + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15>>>3))
-          + w[i - 7]
-          + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2>>>10))
-        ) | 0)
-      ) | 0;
-
-      const temp2 = ((rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
-        + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]))
-      ) | 0;
-
-      hash = [(temp1 + temp2) | 0].concat(hash);
-      hash[4] = (hash[4] + temp1) | 0;
-      hash.pop();
-    }
-
-    for (let i = 0; i < 8; i++){
-      hash[i] = (hash[i] + oldHash[i]) | 0;
-    }
-  }
-
-  for (let i = 0; i < 8; i++){
-    for (let j = 3; j + 1; j--){
-      const b = (hash[i] >> (j * 8)) & 255;
-      result += ((b < 16) ? "0" : "") + b.toString(16);
-    }
-  }
-  return result;
-}
-
 /* ---------- Storage ---------- */
 function loadState(){
   try{
@@ -405,10 +407,10 @@ function saveState(){ localStorage.setItem(APP_KEY, JSON.stringify(state)); }
 function loadSettings(){
   try{
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { isLogged:false, theme:"light", pinHash: DEFAULT_PIN_HASH, goals:null }; // ✅ blanco por defecto
+    if (!raw) return { isLogged:false, theme:"light", pinHash: DEFAULT_PIN_HASH, goals:null };
     const parsed = JSON.parse(raw);
     if (typeof parsed.isLogged !== "boolean") parsed.isLogged = false;
-    if (!parsed.theme) parsed.theme = "light"; // ✅ blanco por defecto
+    if (!parsed.theme) parsed.theme = "light";
     if (!parsed.pinHash || String(parsed.pinHash).length !== 64) parsed.pinHash = DEFAULT_PIN_HASH;
     return parsed;
   }catch{
@@ -491,6 +493,12 @@ function deleteEntry(dateISO, storeId){
   saveState();
 }
 
+function addDaysISO(dateISO, days){
+  const d = new Date(dateISO + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
 /* ---------- Calculations (Caja) ---------- */
 function calcExpectedCash(e){
   const cash = Number(e?.cash || 0);
@@ -535,6 +543,14 @@ function fillEntryIfExists(){
   saveMsg.className = "msg";
 }
 
+function setStatusClass(el, value){
+  el.classList.remove("ok","warn","bad");
+  const v = Math.abs(Number(value||0));
+  if (v <= 0.01) el.classList.add("ok");
+  else if (v <= 10) el.classList.add("warn");
+  else el.classList.add("bad");
+}
+
 function updateDiffBoxes(){
   const cash = round2(parseMoney(cashInput.value));
   const card = round2(parseMoney(cardInput.value));
@@ -545,6 +561,7 @@ function updateDiffBoxes(){
   diffBox.textContent = (!ticketInput.value && !cashInput.value && !cardInput.value)
     ? "—"
     : `${formatDiff(dt)}  (Ticket ${formatMoney(ticket)} - Total ${formatMoney(total)})`;
+  setStatusClass(diffBox, dt);
 
   const tmp = {
     cash,
@@ -558,6 +575,10 @@ function updateDiffBoxes(){
 
   expectedCashBox.textContent = `${formatMoney(expected)}  (Efe ${formatMoney(tmp.cash)} - Gastos ${formatMoney(tmp.expenses)} - Ret ${formatMoney(tmp.withdrawals)} + Extra ${formatMoney(tmp.extraIncome)})`;
   cashDiffBox.textContent = `${formatDiff(cd)}  (Contado ${formatMoney(tmp.cashCounted)} - Esperado ${formatMoney(expected)})`;
+  setStatusClass(cashDiffBox, cd);
+
+  // expectedCashBox siempre neutral
+  expectedCashBox.classList.remove("ok","warn","bad");
 }
 
 function clearEntry(){
@@ -756,6 +777,7 @@ function renderDayHistory(){
     `;
     div.addEventListener("click", () => {
       storeInput.value = it.store;
+      highlightStoreQuick(it.store);
       fillEntryIfExists();
       cashInput.focus();
     });
@@ -853,6 +875,7 @@ function refresh7Days(){
       if (ev.target?.dataset?.del) return;
       dateInput.value = r.date;
       storeInput.value = r.store;
+      highlightStoreQuick(r.store);
       fillEntryIfExists();
       renderTodaySummary();
       renderDayHistory();
@@ -1130,11 +1153,6 @@ function weekRangeLabel(dateISO){
   const sun = addDaysISO(mon, 6);
   return `Semana ${w.year}-W${String(w.week).padStart(2,"0")} (${mon}→${sun})`;
 }
-function addDaysISO(dateISO, days){
-  const d = new Date(dateISO + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return toISODate(d);
-}
 function isoWeek(date){
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -1151,7 +1169,7 @@ function isoWeek(date){
   return { year, week: weekNo, mondayISO };
 }
 
-/* ---------- Charts (mejorados) ---------- */
+/* ---------- Charts ---------- */
 function renderCharts(rows){
   const labels = rows.map(r => r.periodLabel);
   const totals = rows.map(r => r.total);
@@ -1159,7 +1177,6 @@ function renderCharts(rows){
   const card = rows.map(r => r.card);
   const tickets = rows.map(r => r.ticket);
 
-  // media móvil simple (3 periodos)
   const ma = movingAverage(totals, 3);
 
   if (chartTotal) chartTotal.destroy();
@@ -1210,14 +1227,13 @@ function movingAverage(arr, w){
 function baseChartOptions(){
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   const labelColor = isDark ? "#eaf0ff" : "#101828";
+  const gridColor = isDark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)";
   return {
     responsive: true,
-    plugins: {
-      legend: { labels: { color: labelColor } }
-    },
+    plugins: { legend: { labels: { color: labelColor } } },
     scales: {
-      x: { ticks: { color: labelColor }, grid: { color: "rgba(0,0,0,.06)" } },
-      y: { ticks: { color: labelColor }, grid: { color: "rgba(0,0,0,.06)" } },
+      x: { ticks: { color: labelColor }, grid: { color: gridColor } },
+      y: { ticks: { color: labelColor }, grid: { color: gridColor } },
     }
   };
 }
@@ -1388,6 +1404,7 @@ function importBackup(){
       renderGoals();
       refresh7Days();
       refreshReports();
+      highlightStoreQuick(storeInput.value);
       alert("Importado correctamente ✅");
     }catch(err){
       alert("Error importando: " + err.message);
@@ -1416,7 +1433,7 @@ async function copyToClipboard(text){
   }
 }
 
-/* ---------- PIN + Crypto subtle ---------- */
+/* ---------- SHA-256 ---------- */
 async function sha256Hex(text){
   try{
     if (crypto?.subtle?.digest){
@@ -1428,4 +1445,79 @@ async function sha256Hex(text){
     }
   }catch(e){}
   return sha256Fallback(text);
+}
+
+/* SHA-256 fallback JS puro */
+function sha256Fallback(ascii){
+  function rightRotate(value, amount){ return (value>>>amount) | (value<<(32-amount)); }
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  let result = "";
+
+  const words = [];
+  const asciiBitLength = ascii.length * 8;
+
+  let hash = sha256Fallback.h = sha256Fallback.h || [];
+  let k = sha256Fallback.k = sha256Fallback.k || [];
+  let primeCounter = k.length;
+
+  const isComposite = {};
+  for (let candidate = 2; primeCounter < 64; candidate++){
+    if (!isComposite[candidate]){
+      for (let i = 0; i < 313; i += candidate) isComposite[i] = candidate;
+      hash[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
+      k[primeCounter++] = (mathPow(candidate, 1/3) * maxWord) | 0;
+    }
+  }
+
+  ascii += "\x80";
+  while (ascii.length % 64 - 56) ascii += "\x00";
+  for (let i = 0; i < ascii.length; i++){
+    const j = ascii.charCodeAt(i);
+    words[i>>2] |= j << ((3 - i)%4)*8;
+  }
+  words[words.length] = ((asciiBitLength / maxWord) | 0);
+  words[words.length] = (asciiBitLength);
+
+  for (let j = 0; j < words.length;){
+    const w = words.slice(j, j += 16);
+    const oldHash = hash.slice(0);
+
+    for (let i = 0; i < 64; i++){
+      const w15 = w[i - 15], w2 = w[i - 2];
+
+      const a = hash[0], e = hash[4];
+      const temp1 = (hash[7]
+        + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
+        + ((e & hash[5]) ^ ((~e) & hash[6]))
+        + k[i]
+        + (w[i] = (i < 16) ? w[i] : (
+          w[i - 16]
+          + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15>>>3))
+          + w[i - 7]
+          + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2>>>10))
+        ) | 0)
+      ) | 0;
+
+      const temp2 = ((rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
+        + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]))
+      ) | 0;
+
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[4] = (hash[4] + temp1) | 0;
+      hash.pop();
+    }
+
+    for (let i = 0; i < 8; i++){
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+
+  for (let i = 0; i < 8; i++){
+    for (let j = 3; j + 1; j--){
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += ((b < 16) ? "0" : "") + b.toString(16);
+    }
+  }
+  return result;
 }
