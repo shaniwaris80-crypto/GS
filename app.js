@@ -1,40 +1,41 @@
 /* ===============================
-   FIREBASE CLOUD SYNC (SAFE)
-   No modifica lógica existente
+   FIREBASE CLOUD SYNC (LEGACY SAFE)
+   - NO MODIFICA tu lógica existente
+   - Renombrado para NO chocar con el cloud nuevo
 =============================== */
 
-const cloudStatus = document.getElementById("cloudStatus");
+const cloudStatusLegacy = document.getElementById("cloudStatus");
 
-function setCloudStatus(type, text){
-  if(!cloudStatus) return;
-  cloudStatus.className = "cloud-pill " + type;
-  cloudStatus.textContent = text;
+function setCloudStatusLegacy(type, text){
+  if(!cloudStatusLegacy) return;
+  cloudStatusLegacy.className = "cloud-pill " + type;
+  cloudStatusLegacy.textContent = text;
 }
 
 let CLOUD_READY = false;
 let CLOUD_UID = null;
 
-function initCloud(){
+function initCloudLegacy(){
   if (!window.__firebase){
-    setCloudStatus("bad","☁️ Nube: no configurada");
+    setCloudStatusLegacy("bad","☁️ Nube: no configurada");
     return;
   }
 
   const { auth, db } = window.__firebase;
 
-  setCloudStatus("warn","☁️ Conectando…");
+  setCloudStatusLegacy("warn","☁️ Conectando…");
 
   auth.signInAnonymously().then(()=>{
     auth.onAuthStateChanged(user=>{
       if(!user){
-        setCloudStatus("bad","☁️ Sin sesión");
+        setCloudStatusLegacy("bad","☁️ Sin sesión");
         return;
       }
 
       CLOUD_UID = user.uid;
       CLOUD_READY = true;
 
-      setCloudStatus("ok","☁️ Nube online");
+      setCloudStatusLegacy("ok","☁️ Nube online");
 
       const baseRef = db.ref("arslan_facturacion/" + CLOUD_UID);
 
@@ -51,12 +52,12 @@ function initCloud(){
       });
     });
   }).catch(()=>{
-    setCloudStatus("bad","☁️ Error auth");
+    setCloudStatusLegacy("bad","☁️ Error auth");
   });
 }
 
-// SUBIR A NUBE (sin tocar tu lógica)
-function cloudPush(){
+// SUBIR A NUBE (legacy)
+function cloudPushLegacy(){
   if(!CLOUD_READY) return;
   const { db, serverTimestamp } = window.__firebase;
   db.ref("arslan_facturacion/" + CLOUD_UID + "/state").set({
@@ -229,64 +230,83 @@ function setCloudBadge(type, text){
 
 async function initCloud(){
   try{
-    if (!window.__firebase || !window.__FIREBASE_CONFIG__) {
+    // ✅ MODO COMPAT: tu index expone window.__firebase = { app, auth, db, serverTimestamp }
+    if (!window.__firebase || !window.__firebase.auth || !window.__firebase.db){
       setCloudBadge("warn","☁️ Nube: no configurada");
       return;
     }
 
-    const {
-      initializeApp,
-      getAuth, signInAnonymously, onAuthStateChanged,
-      getDatabase, ref, get, set, onValue, serverTimestamp
-    } = window.__firebase;
-
-    const app = initializeApp(window.__FIREBASE_CONFIG__);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+    const { auth, db, serverTimestamp } = window.__firebase;
 
     cloud.enabled = true;
     setCloudBadge("warn","☁️ Nube: conectando…");
 
-    // 🔐 Requiere habilitar "Anonymous" en Firebase Auth
-    await signInAnonymously(auth);
+    auth.signInAnonymously().then(() => {
+      auth.onAuthStateChanged(async (user) => {
+        if (!user){
+          cloud.ready = false;
+          setCloudBadge("bad","☁️ Nube: sin sesión");
+          return;
+        }
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user){
-        cloud.ready = false;
-        setCloudBadge("bad","☁️ Nube: sin sesión");
-        return;
-      }
+        cloud.uid = user.uid;
+        cloud.ready = true;
+        setCloudBadge("ok","☁️ Nube: online");
 
-      cloud.uid = user.uid;
-      cloud.ready = true;
-      setCloudBadge("ok","☁️ Nube: online");
+        const basePath = "arslan_facturacion/" + cloud.uid;
+        const baseRef = db.ref(basePath);
 
-      // Rutas por usuario
-      const basePath = `arslan_facturacion/${cloud.uid}`;
-      const stateRef = ref(db, `${basePath}/state`);
-      const settingsRef = ref(db, `${basePath}/settings`);
+        // Guardamos refs para push rápido (compat)
+        window.__cloud = {
+          baseRef,
+          serverTimestamp,
+          stateRef: baseRef.child("state"),
+          settingsRef: baseRef.child("settings")
+        };
 
-      // Guardamos para push rápido
-      window.__cloud = { db, ref, get, set, serverTimestamp, stateRef, settingsRef };
+        // 1) PULL inicial
+        await cloudPullOnce(window.__cloud.stateRef, window.__cloud.settingsRef);
 
-      // 1) PULL inicial
-      await cloudPullOnce(stateRef, settingsRef);
+        // 2) LISTENER tiempo real (estado)
+        window.__cloud.stateRef.on("value",
+          (snap) => {
+            const remote = snap.val();
+            if (!remote) return;
+            cloudApplyRemoteState(remote);
+          },
+          (err) => {
+            console.error("Realtime state listener error:", err);
+            setCloudBadge("bad","☁️ DB: " + (err?.code || "error"));
+          }
+        );
 
-      // 2) LISTENER en tiempo real (cambios desde otro dispositivo)
-      onValue(stateRef, (snap) => {
-        const remote = snap.val();
-        if (!remote) return;
-        cloudApplyRemoteState(remote);
+        // 2b) LISTENER tiempo real (settings/goals)
+        window.__cloud.settingsRef.on("value",
+          (snap) => {
+            const remote = snap.val();
+            if (!remote) return;
+            cloudApplyRemoteSettings(remote);
+          },
+          (err) => {
+            console.error("Realtime settings listener error:", err);
+            setCloudBadge("bad","☁️ DB: " + (err?.code || "error"));
+          }
+        );
+
+        // 3) Push inicial (asegura copia nube)
+        await cloudPushAll();
+
+        // ✅ test escritura (para detectar rules)
+        baseRef.child("test").set({ ok:true, t: Date.now() })
+          .then(()=> setCloudBadge("ok","☁️ Nube: online"))
+          .catch((err)=>{
+            console.error("Write test error:", err);
+            setCloudBadge("bad","☁️ WRITE: " + (err?.code || "error"));
+          });
       });
-
-      onValue(settingsRef, (snap) => {
-        const remote = snap.val();
-        if (!remote) return;
-        cloudApplyRemoteSettings(remote);
-      });
-
-      // 3) Push inicial (asegura copia nube)
-      await cloudPushAll();
+    }).catch((err)=>{
+      console.error("Anonymous auth error:", err);
+      setCloudBadge("bad","☁️ Auth: " + (err?.code || "error"));
     });
 
   }catch(err){
@@ -300,8 +320,8 @@ async function cloudPullOnce(stateRef, settingsRef){
     setCloudBadge("warn","☁️ Nube: sincronizando…");
 
     const [s1, s2] = await Promise.all([
-      window.__cloud.get(stateRef),
-      window.__cloud.get(settingsRef)
+      stateRef.get(),
+      settingsRef.get()
     ]);
 
     const remoteState = s1.exists() ? s1.val() : null;
@@ -385,24 +405,24 @@ async function cloudPushAll(){
     cloud.pendingPush = true;
     setCloudBadge("warn","☁️ Nube: subiendo…");
 
-    const { set, serverTimestamp, stateRef, settingsRef } = window.__cloud;
+    const { stateRef, settingsRef, serverTimestamp } = window.__cloud;
 
     const payloadState = {
       entries: state.entries || {},
       updatedAt: new Date().toISOString(),
-      serverAt: serverTimestamp()
+      serverAt: serverTimestamp
     };
 
     // ⚠️ Solo sincronizamos objetivos + metadatos (no theme, no isLogged, no pinHash)
     const payloadSettings = {
       goals: settings.goals || null,
       updatedAt: new Date().toISOString(),
-      serverAt: serverTimestamp()
+      serverAt: serverTimestamp
     };
 
     await Promise.all([
-      set(stateRef, payloadState),
-      set(settingsRef, payloadSettings)
+      stateRef.set(payloadState),
+      settingsRef.set(payloadSettings)
     ]);
 
     cloud.pendingPush = false;
@@ -415,7 +435,6 @@ async function cloudPushAll(){
 }
 
 function cloudPushAfterLocalChange(){
-  // Llamada suave, sin romper si no hay nube
   cloudPushAll().catch(()=>{});
 }
 
@@ -907,7 +926,7 @@ function onSave(){
   refresh7Days();
   refreshReports();
 
-  // ✅ NUBE: subir cambios (sin tocar lógica)
+  // ✅ NUBE: subir cambios
   cloudPushAfterLocalChange();
 }
 
@@ -1805,69 +1824,15 @@ function sha256Fallback(ascii){
       result += ((b < 16) ? "0" : "") + b.toString(16);
     }
   }
+
   return result;
-   function initCloud(){
-  try{
-    if (!window.__firebase || !window.__firebase.auth || !window.__firebase.db){
-      setCloudStatus("bad","☁️ Nube: no configurada");
-      return;
-    }
 
-    const { auth, db } = window.__firebase;
-    setCloudStatus("warn","☁️ Conectando…");
+  /* ==============================
+     PEGADO ACCIDENTAL — DESACTIVADO
+     (No se borra, solo se comenta)
+  ==============================
 
-    auth.signInAnonymously()
-      .then(() => {
-        auth.onAuthStateChanged((user) => {
-          if (!user){
-            setCloudStatus("bad","☁️ Sin sesión");
-            return;
-          }
+  function initCloud(){ ... }
 
-          CLOUD_UID = user.uid;
-          CLOUD_READY = true;
-
-          setCloudStatus("ok","☁️ Nube online");
-
-          const baseRef = db.ref("arslan_facturacion/" + CLOUD_UID);
-
-          // 👇 Listener con captura de error real
-          baseRef.child("state").on("value",
-            (snap) => {
-              const remote = snap.val();
-              if (!remote?.entries) return;
-
-              // merge simple (remote pisa local)
-              state.entries = remote.entries;
-              saveState();
-
-              refreshReports?.();
-              renderTodaySummary?.();
-            },
-            (err) => {
-              console.error("Realtime DB listener error:", err);
-              setCloudStatus("bad", "☁️ DB: " + (err?.code || "error"));
-            }
-          );
-
-          // ✅ test de escritura para confirmar Rules
-          baseRef.child("test").set({ ok:true, t: Date.now() })
-            .then(()=> setCloudStatus("ok","☁️ Nube online (write ok)"))
-            .catch((err)=>{
-              console.error("Write test error:", err);
-              setCloudStatus("bad","☁️ WRITE: " + (err?.code || "error"));
-            });
-
-        });
-      })
-      .catch((err) => {
-        console.error("Anonymous auth error:", err);
-        setCloudStatus("bad","☁️ Auth: " + (err?.code || "error"));
-      });
-
-  }catch(err){
-    console.error("initCloud crash:", err);
-    setCloudStatus("bad","☁️ Nube: error");
-  }
+  ============================== */
 }
-
