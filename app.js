@@ -1,3 +1,70 @@
+/* ===============================
+   FIREBASE CLOUD SYNC (SAFE)
+   No modifica lógica existente
+=============================== */
+
+const cloudStatus = document.getElementById("cloudStatus");
+
+function setCloudStatus(type, text){
+  if(!cloudStatus) return;
+  cloudStatus.className = "cloud-pill " + type;
+  cloudStatus.textContent = text;
+}
+
+let CLOUD_READY = false;
+let CLOUD_UID = null;
+
+function initCloud(){
+  if (!window.__firebase){
+    setCloudStatus("bad","☁️ Nube: no configurada");
+    return;
+  }
+
+  const { auth, db } = window.__firebase;
+
+  setCloudStatus("warn","☁️ Conectando…");
+
+  auth.signInAnonymously().then(()=>{
+    auth.onAuthStateChanged(user=>{
+      if(!user){
+        setCloudStatus("bad","☁️ Sin sesión");
+        return;
+      }
+
+      CLOUD_UID = user.uid;
+      CLOUD_READY = true;
+
+      setCloudStatus("ok","☁️ Nube online");
+
+      const baseRef = db.ref("arslan_facturacion/" + CLOUD_UID);
+
+      // 🔄 ESCUCHA CAMBIOS DESDE OTRO DISPOSITIVO
+      baseRef.child("state").on("value", snap=>{
+        if(!snap.exists()) return;
+        const remote = snap.val();
+        if(remote?.entries){
+          state.entries = remote.entries;
+          saveState();
+          refreshReports?.();
+          renderTodaySummary?.();
+        }
+      });
+    });
+  }).catch(()=>{
+    setCloudStatus("bad","☁️ Error auth");
+  });
+}
+
+// SUBIR A NUBE (sin tocar tu lógica)
+function cloudPush(){
+  if(!CLOUD_READY) return;
+  const { db, serverTimestamp } = window.__firebase;
+  db.ref("arslan_facturacion/" + CLOUD_UID + "/state").set({
+    entries: state.entries,
+    updatedAt: serverTimestamp
+  });
+}
+
 /* =========================
    ARSLAN — Facturación Diaria PRO (Pack C)
    - Mantiene TODAS las funciones
