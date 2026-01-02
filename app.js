@@ -1806,4 +1806,69 @@ function sha256Fallback(ascii){
     }
   }
   return result;
+   function initCloud(){
+  try{
+    if (!window.__firebase || !window.__firebase.auth || !window.__firebase.db){
+      setCloudStatus("bad","☁️ Nube: no configurada");
+      return;
+    }
+
+    const { auth, db } = window.__firebase;
+    setCloudStatus("warn","☁️ Conectando…");
+
+    auth.signInAnonymously()
+      .then(() => {
+        auth.onAuthStateChanged((user) => {
+          if (!user){
+            setCloudStatus("bad","☁️ Sin sesión");
+            return;
+          }
+
+          CLOUD_UID = user.uid;
+          CLOUD_READY = true;
+
+          setCloudStatus("ok","☁️ Nube online");
+
+          const baseRef = db.ref("arslan_facturacion/" + CLOUD_UID);
+
+          // 👇 Listener con captura de error real
+          baseRef.child("state").on("value",
+            (snap) => {
+              const remote = snap.val();
+              if (!remote?.entries) return;
+
+              // merge simple (remote pisa local)
+              state.entries = remote.entries;
+              saveState();
+
+              refreshReports?.();
+              renderTodaySummary?.();
+            },
+            (err) => {
+              console.error("Realtime DB listener error:", err);
+              setCloudStatus("bad", "☁️ DB: " + (err?.code || "error"));
+            }
+          );
+
+          // ✅ test de escritura para confirmar Rules
+          baseRef.child("test").set({ ok:true, t: Date.now() })
+            .then(()=> setCloudStatus("ok","☁️ Nube online (write ok)"))
+            .catch((err)=>{
+              console.error("Write test error:", err);
+              setCloudStatus("bad","☁️ WRITE: " + (err?.code || "error"));
+            });
+
+        });
+      })
+      .catch((err) => {
+        console.error("Anonymous auth error:", err);
+        setCloudStatus("bad","☁️ Auth: " + (err?.code || "error"));
+      });
+
+  }catch(err){
+    console.error("initCloud crash:", err);
+    setCloudStatus("bad","☁️ Nube: error");
+  }
+}
+
 }
