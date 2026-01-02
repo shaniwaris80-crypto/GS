@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1, viewport-fit=cover" />
-  <title>ARSLAN — Facturación Diaria (3 Tiendas)</title>
+  <title>ARSLAN — Facturación Diaria (<3)</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,6 +56,9 @@
       </div>
 
       <div class="topbar-right">
+        <!-- ☁️ Estado nube -->
+        <div id="cloudStatus" class="cloud-pill">☁️ Nube: …</div>
+
         <button id="btnTheme" class="btn ghost">🌙/☀️</button>
         <button id="btnBackup" class="btn ghost">Exportar JSON</button>
         <label class="btn ghost file-label">
@@ -472,12 +475,36 @@
     </main>
 
     <footer class="footer muted small">
-      Guardado local (localStorage). Usa exportación para copia.
+      Guardado local + sincronización en nube (Firebase RTDB).
     </footer>
 
     <!-- UX: Botón subir (móvil) -->
     <button id="btnScrollTop" class="fab-top" title="Subir">↑</button>
   </div>
+
+  <!-- ✅ Firebase (modular) + TU config expuesta a app.js -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { getDatabase, ref, get, set, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+
+    window.__FIREBASE_CONFIG__ = {
+      apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
+      authDomain: "gsttt-82973.firebaseapp.com",
+      databaseURL: "https://gsttt-82973-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "gsttt-82973",
+      storageBucket: "gsttt-82973.firebasestorage.app",
+      messagingSenderId: "29419291414",
+      appId: "1:29419291414:web:0970ac92deb39983854637",
+      measurementId: "G-ZYVDBSG29J"
+    };
+
+    window.__firebase = {
+      initializeApp,
+      getAuth, signInAnonymously, onAuthStateChanged,
+      getDatabase, ref, get, set, update, onValue, serverTimestamp
+    };
+  </script>
 
   <script src="app.js"></script>
 </body>
