@@ -1871,4 +1871,3 @@ function sha256Fallback(ascii){
   }
 }
 
-}
