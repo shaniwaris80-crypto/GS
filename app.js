@@ -2,7 +2,7 @@
    ARSLAN — Facturación Diaria PRO (Pack C)
    - Mantiene TODAS las funciones
    - Mejoras: móvil (tabs + UX), gráficos (3), tema blanco por defecto
-   - Mejoras sutiles: Enter → siguiente, auto-select inputs, botón subir, resalta tienda rápida, colores dif
+   - ✅ Nube: Firebase RTDB + Auth anónimo (offline-first)
 ========================= */
 
 const APP_KEY = "ARSLAN_FACTURACION_PACKC_V1";
@@ -130,6 +130,7 @@ const btnTheme = $("btnTheme");
 const btnThemeLogin = $("btnThemeLogin");
 
 const btnScrollTop = $("btnScrollTop");
+const cloudStatus = $("cloudStatus");
 
 /* Mobile tabs */
 const mobileTabs = $("mobileTabs");
@@ -140,12 +141,224 @@ let chartTotal = null;
 let chartMix = null;
 let chartTicket = null;
 
+/* =========================
+   CLOUD SYNC (Firebase RTDB)
+   - offline-first: localStorage sigue siendo base
+   - nube: sincroniza state + goals
+========================= */
+let cloud = {
+  enabled: false,
+  ready: false,
+  uid: null,
+  pendingPush: false
+};
+
+function setCloudBadge(type, text){
+  if (!cloudStatus) return;
+  cloudStatus.classList.remove("ok","warn","bad");
+  if (type) cloudStatus.classList.add(type);
+  cloudStatus.textContent = text;
+}
+
+async function initCloud(){
+  try{
+    if (!window.__firebase || !window.__FIREBASE_CONFIG__) {
+      setCloudBadge("warn","☁️ Nube: no configurada");
+      return;
+    }
+
+    const {
+      initializeApp,
+      getAuth, signInAnonymously, onAuthStateChanged,
+      getDatabase, ref, get, set, onValue, serverTimestamp
+    } = window.__firebase;
+
+    const app = initializeApp(window.__FIREBASE_CONFIG__);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    cloud.enabled = true;
+    setCloudBadge("warn","☁️ Nube: conectando…");
+
+    // 🔐 Requiere habilitar "Anonymous" en Firebase Auth
+    await signInAnonymously(auth);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user){
+        cloud.ready = false;
+        setCloudBadge("bad","☁️ Nube: sin sesión");
+        return;
+      }
+
+      cloud.uid = user.uid;
+      cloud.ready = true;
+      setCloudBadge("ok","☁️ Nube: online");
+
+      // Rutas por usuario
+      const basePath = `arslan_facturacion/${cloud.uid}`;
+      const stateRef = ref(db, `${basePath}/state`);
+      const settingsRef = ref(db, `${basePath}/settings`);
+
+      // Guardamos para push rápido
+      window.__cloud = { db, ref, get, set, serverTimestamp, stateRef, settingsRef };
+
+      // 1) PULL inicial
+      await cloudPullOnce(stateRef, settingsRef);
+
+      // 2) LISTENER en tiempo real (cambios desde otro dispositivo)
+      onValue(stateRef, (snap) => {
+        const remote = snap.val();
+        if (!remote) return;
+        cloudApplyRemoteState(remote);
+      });
+
+      onValue(settingsRef, (snap) => {
+        const remote = snap.val();
+        if (!remote) return;
+        cloudApplyRemoteSettings(remote);
+      });
+
+      // 3) Push inicial (asegura copia nube)
+      await cloudPushAll();
+    });
+
+  }catch(err){
+    console.error("Cloud init error:", err);
+    setCloudBadge("bad","☁️ Nube: error");
+  }
+}
+
+async function cloudPullOnce(stateRef, settingsRef){
+  try{
+    setCloudBadge("warn","☁️ Nube: sincronizando…");
+
+    const [s1, s2] = await Promise.all([
+      window.__cloud.get(stateRef),
+      window.__cloud.get(settingsRef)
+    ]);
+
+    const remoteState = s1.exists() ? s1.val() : null;
+    const remoteSettings = s2.exists() ? s2.val() : null;
+
+    // Si nube está vacía, NO pisa local
+    if (remoteState && remoteState.entries){
+      cloudApplyRemoteState(remoteState, true);
+    }
+    if (remoteSettings){
+      cloudApplyRemoteSettings(remoteSettings, true);
+    }
+
+    setCloudBadge("ok","☁️ Nube: online");
+  }catch(err){
+    console.error("Cloud pull error:", err);
+    setCloudBadge("warn","☁️ Nube: offline (local)");
+  }
+}
+
+function cloudApplyRemoteState(remote, silent=false){
+  if (!remote?.entries) return;
+  if (!state.entries) state.entries = {};
+
+  let changed = false;
+
+  for (const [k, v] of Object.entries(remote.entries)){
+    const local = state.entries[k];
+    const rTime = Date.parse(v?.updatedAt || 0) || 0;
+    const lTime = Date.parse(local?.updatedAt || 0) || 0;
+
+    // Gana el más reciente
+    if (!local || rTime > lTime){
+      state.entries[k] = v;
+      changed = true;
+    }
+  }
+
+  if (changed){
+    saveState();
+    if (!silent){
+      try{
+        fillEntryIfExists();
+        renderTodaySummary();
+        renderDayHistory();
+        renderGoals();
+        refresh7Days();
+        refreshReports();
+      }catch(e){}
+    }
+  }
+}
+
+function cloudApplyRemoteSettings(remote, silent=false){
+  if (!remote) return;
+
+  // Por seguridad: no aceptamos isLogged remoto
+  const keepIsLogged = settings.isLogged;
+  const keepTheme = settings.theme;
+  const keepPinHash = settings.pinHash || DEFAULT_PIN_HASH;
+
+  settings = { ...settings, ...remote };
+  settings.isLogged = keepIsLogged;
+  settings.theme = keepTheme;
+  settings.pinHash = keepPinHash;
+
+  saveSettings();
+  if (!silent){
+    try{
+      renderGoals();
+      renderTodaySummary();
+      refreshReports();
+    }catch(e){}
+  }
+}
+
+async function cloudPushAll(){
+  try{
+    if (!cloud.enabled || !cloud.ready || !window.__cloud) return;
+
+    cloud.pendingPush = true;
+    setCloudBadge("warn","☁️ Nube: subiendo…");
+
+    const { set, serverTimestamp, stateRef, settingsRef } = window.__cloud;
+
+    const payloadState = {
+      entries: state.entries || {},
+      updatedAt: new Date().toISOString(),
+      serverAt: serverTimestamp()
+    };
+
+    // ⚠️ Solo sincronizamos objetivos + metadatos (no theme, no isLogged, no pinHash)
+    const payloadSettings = {
+      goals: settings.goals || null,
+      updatedAt: new Date().toISOString(),
+      serverAt: serverTimestamp()
+    };
+
+    await Promise.all([
+      set(stateRef, payloadState),
+      set(settingsRef, payloadSettings)
+    ]);
+
+    cloud.pendingPush = false;
+    setCloudBadge("ok","☁️ Nube: online");
+  }catch(err){
+    console.error("Cloud push error:", err);
+    cloud.pendingPush = false;
+    setCloudBadge("warn","☁️ Nube: offline (local)");
+  }
+}
+
+function cloudPushAfterLocalChange(){
+  // Llamada suave, sin romper si no hay nube
+  cloudPushAll().catch(()=>{});
+}
+
 /* ---------- INIT ---------- */
-applyTheme(settings.theme || "light"); // ✅ blanco por defecto
+applyTheme(settings.theme || "light"); // blanco por defecto
 initDefaults();
 bindEvents();
 initMobileTabs();
 initUX();
+initCloud(); // ✅ nube
 
 if (settings.isLogged) showApp();
 else showLogin();
@@ -244,8 +457,6 @@ function initMobileTabs(){
   }
 
   tabButtons.forEach(btn => btn.addEventListener("click", () => activateTab(btn.dataset.tab)));
-
-  // default
   activateTab("tab-entry");
 }
 
@@ -253,12 +464,10 @@ function initMobileTabs(){
 function initUX(){
   // Auto-select números al focus
   document.querySelectorAll("input.money").forEach(inp=>{
-    inp.addEventListener("focus", () => {
-      try { inp.select(); } catch {}
-    });
+    inp.addEventListener("focus", () => { try { inp.select(); } catch {} });
   });
 
-  // Enter -> siguiente campo (solo money + notes)
+  // Enter -> siguiente campo (solo money)
   const order = [
     cashInput, cardInput, ticketInput,
     expensesInput, withdrawalsInput, extraIncomeInput, cashCountedInput,
@@ -267,7 +476,6 @@ function initUX(){
   order.forEach((el, idx)=>{
     el.addEventListener("keydown", (e)=>{
       if (e.key === "Enter"){
-        // en textarea dejamos Enter normal (saltos)
         if (el.tagName.toLowerCase() === "textarea") return;
         e.preventDefault();
         const next = order[idx+1];
@@ -284,7 +492,6 @@ function initUX(){
     btnScrollTop.classList.toggle("show", show);
   });
 
-  // Inicial resaltar tienda
   highlightStoreQuick(storeInput.value);
 }
 
@@ -577,7 +784,6 @@ function updateDiffBoxes(){
   cashDiffBox.textContent = `${formatDiff(cd)}  (Contado ${formatMoney(tmp.cashCounted)} - Esperado ${formatMoney(expected)})`;
   setStatusClass(cashDiffBox, cd);
 
-  // expectedCashBox siempre neutral
   expectedCashBox.classList.remove("ok","warn","bad");
 }
 
@@ -633,6 +839,9 @@ function onSave(){
   renderGoals();
   refresh7Days();
   refreshReports();
+
+  // ✅ NUBE: subir cambios (sin tocar lógica)
+  cloudPushAfterLocalChange();
 }
 
 function onDelete(){
@@ -652,6 +861,9 @@ function onDelete(){
   renderGoals();
   refresh7Days();
   refreshReports();
+
+  // ✅ NUBE
+  cloudPushAfterLocalChange();
 }
 
 /* ---------- Day totals ---------- */
@@ -797,6 +1009,9 @@ function onSaveGoals(){
   renderGoals();
   renderTodaySummary();
   toast(saveMsg, "Objetivos guardados ✅", true);
+
+  // ✅ NUBE
+  cloudPushAfterLocalChange();
 }
 
 function renderGoals(){
@@ -893,6 +1108,7 @@ function refresh7Days(){
         renderDayHistory();
       }
       refreshReports();
+      cloudPushAfterLocalChange(); // ✅ NUBE
     });
     table7Body.appendChild(tr);
   }
@@ -945,7 +1161,7 @@ function buildWhatsAppWeekText(anyDateISO){
   }
   const g = { cash:0, card:0, total:0, ticket:0, diffT:0 };
 
-  const all = Object.values(state.entries || []);
+  const all = Object.values(state.entries || {});
   for (const e of all){
     if (e.date < mondayISO || e.date > sundayISO) continue;
     const s = e.store;
@@ -1049,7 +1265,7 @@ function refreshReports(){
 }
 
 function buildReport(type, store, from=null, to=null){
-  const all = Object.values(state.entries || []);
+  const all = Object.values(state.entries || {});
   if (!all.length) return [];
 
   const filtered = all.filter(e => {
@@ -1406,6 +1622,9 @@ function importBackup(){
       refreshReports();
       highlightStoreQuick(storeInput.value);
       alert("Importado correctamente ✅");
+
+      // ✅ NUBE
+      cloudPushAfterLocalChange();
     }catch(err){
       alert("Error importando: " + err.message);
     }finally{
