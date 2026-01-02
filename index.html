@@ -482,30 +482,35 @@
     <button id="btnScrollTop" class="fab-top" title="Subir">↑</button>
   </div>
 
-  <!-- ✅ Firebase (modular) + TU config expuesta a app.js -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { getDatabase, ref, get, set, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+<!-- 🔥 Firebase CDN (Web plano) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
-    window.__FIREBASE_CONFIG__ = {
-      apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
-      authDomain: "gsttt-82973.firebaseapp.com",
-      databaseURL: "https://gsttt-82973-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "gsttt-82973",
-      storageBucket: "gsttt-82973.firebasestorage.app",
-      messagingSenderId: "29419291414",
-      appId: "1:29419291414:web:0970ac92deb39983854637",
-      measurementId: "G-ZYVDBSG29J"
-    };
+<script>
+  // Firebase CONFIG (TUYA)
+  window.__FIREBASE_CONFIG__ = {
+    apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
+    authDomain: "gsttt-82973.firebaseapp.com",
+    databaseURL: "https://gsttt-82973-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "gsttt-82973",
+    storageBucket: "gsttt-82973.firebasestorage.app",
+    messagingSenderId: "29419291414",
+    appId: "1:29419291414:web:0970ac92deb39983854637",
+    measurementId: "G-ZYVDBSG29J"
+  };
 
-    window.__firebase = {
-      initializeApp,
-      getAuth, signInAnonymously, onAuthStateChanged,
-      getDatabase, ref, get, set, update, onValue, serverTimestamp
-    };
-  </script>
+  // Exponer Firebase a app.js (SIN MODIFICAR TU LÓGICA)
+  window.__firebase = {
+    app: firebase.initializeApp(window.__FIREBASE_CONFIG__),
+    auth: firebase.auth(),
+    db: firebase.database(),
+    serverTimestamp: firebase.database.ServerValue.TIMESTAMP
+  };
+</script>
 
-  <script src="app.js"></script>
+<!-- TU APP -->
+<script src="app.js"></script>
+
 </body>
 </html>
