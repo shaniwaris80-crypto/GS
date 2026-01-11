@@ -17,10 +17,10 @@
   <!-- CLOUD LOGIN (PRIMERO) -->
   <div id="cloudGate" class="view">
     <div class="card login-card">
-      <div class="brand">
+      <div class="brand brand-gate">
         <div class="logo">🥝</div>
         <div>
-          <div class="brand-title">ARSLAN</div>
+          <div class="brand-title">ARSLAN CLOUD</div>
           <div class="brand-sub">Ventas — 3 tiendas · Multi-dispositivo</div>
         </div>
       </div>
@@ -66,145 +66,130 @@
   <!-- APP -->
   <div id="appView" class="view hidden app-view">
 
-    <!-- TOPBAR (dos niveles: nav + acciones) -->
-    <header class="topbar">
-
-      <div class="topbar-row topbar-row--main">
-        <div class="topbar-left">
-          <div class="badge">🥝 ARSLAN</div>
-          <div class="topbar-meta">
-            <div class="title">Ventas</div>
-            <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
-          </div>
-        </div>
-
-        <div class="topbar-right">
-          <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: —</div>
-
-          <button id="btnTheme" class="btn ghost">🌙/☀️</button>
-
-          <div class="top-actions">
-            <button id="btnBackup" class="btn ghost">Exportar JSON</button>
-
-            <label class="btn ghost file-label">
-              Importar JSON
-              <input id="importFile" type="file" accept="application/json" hidden />
-            </label>
-
-            <button id="btnCloudLogout" class="btn danger ghost">Salir nube</button>
-            <button id="btnLogoutApp" class="btn danger">Salir</button>
-          </div>
+    <!-- TOPBAR: marca + nube + tiendas ancladas -->
+    <header class="topbar topbar-new">
+      <div class="topbar-left">
+        <div class="badge badge-brand">🥝 ARSLAN</div>
+        <div>
+          <div class="title">Ventas</div>
+          <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
         </div>
       </div>
 
-      <!-- NAV (desktop y móvil, limpio) -->
-      <nav class="topnav" aria-label="Navegación principal">
-        <button class="tab active" data-tab="tab-entry">Entrada</button>
-        <button class="tab" data-tab="tab-summary">Resumen</button>
-        <button class="tab" data-tab="tab-reports">Reportes</button>
-      </nav>
+      <!-- Store switcher ANCLADO ARRIBA en horizontal -->
+      <div class="storebar" aria-label="Selector de tienda">
+        <button class="btn storebtn storepill" data-store="san_pablo">San Pablo</button>
+        <button class="btn storebtn storepill" data-store="san_lesmes">San Lesmes</button>
+        <button class="btn storebtn storepill" data-store="santiago">Santiago</button>
+      </div>
 
+      <div class="topbar-right">
+        <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: —</div>
+
+        <button id="btnTheme" class="btn ghost">🌙/☀️</button>
+
+        <button id="btnBackup" class="btn ghost">Exportar JSON</button>
+        <label class="btn ghost file-label">
+          Importar JSON
+          <input id="importFile" type="file" accept="application/json" hidden />
+        </label>
+
+        <button id="btnCloudLogout" class="btn danger ghost">Salir nube</button>
+        <button id="btnLogoutApp" class="btn danger">Salir</button>
+      </div>
     </header>
 
-    <!-- Mobile Tabs (se mantiene por compatibilidad con tu JS, pero ahora lo ocultamos visualmente) -->
-    <nav class="mobile-tabs" id="mobileTabs">
+    <!-- TABS (ahora estilo “pills” y visible en móvil/desktop) -->
+    <nav class="mobile-tabs tabs-new" id="mobileTabs">
       <button class="tab active" data-tab="tab-entry">Entrada</button>
       <button class="tab" data-tab="tab-summary">Resumen</button>
       <button class="tab" data-tab="tab-reports">Reportes</button>
     </nav>
 
-    <main class="container">
+    <main class="container container-new">
 
       <!-- TAB: ENTRADA -->
       <section class="tab-section active" id="tab-entry">
-        <div class="layout-two">
-
-          <div class="card">
-            <div class="card-head">
-              <h2>Entrada</h2>
-              <div class="muted small">
-                Efectivo, Tarjeta, Gastos y Ticket. La diferencia usa: (Efe+Tar) − Ticket.
-              </div>
-            </div>
-
-            <div class="form">
-              <div class="row gap wrap">
-                <div class="field">
-                  <label>Fecha</label>
-                  <div class="datebar">
-                    <input id="dateInput" type="date" class="input" />
-                    <button id="btnToday" class="btn ghost">Hoy</button>
-                    <button id="btnYesterday" class="btn ghost">Ayer</button>
-                  </div>
-                </div>
-
-                <div class="field">
-                  <label>Tienda</label>
-                  <select id="storeInput" class="input">
-                    <option value="san_pablo">San Pablo</option>
-                    <option value="san_lesmes">San Lesmes</option>
-                    <option value="santiago">Santiago</option>
-                  </select>
-
-                  <div class="storequick">
-                    <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
-                    <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
-                    <button class="btn storebtn" data-store="santiago">Santiago</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="row gap wrap">
-                <div class="field">
-                  <label>Efectivo (€)</label>
-                  <input id="cashInput" class="input money" inputmode="decimal" placeholder="0,00" />
-                </div>
-                <div class="field">
-                  <label>Tarjeta (€)</label>
-                  <input id="cardInput" class="input money" inputmode="decimal" placeholder="0,00" />
-                </div>
-              </div>
-
-              <div class="row gap wrap">
-                <div class="field">
-                  <label>Gastos (€)</label>
-                  <input id="expensesInput" class="input money" inputmode="decimal" placeholder="0,00" />
-                </div>
-                <div class="field">
-                  <label>Ticket total (€)</label>
-                  <input id="ticketInput" class="input money" inputmode="decimal" placeholder="0,00" />
-                </div>
-              </div>
-
-              <div class="hr"></div>
-
-              <div class="row gap wrap">
-                <div class="field">
-                  <label>Total (Efectivo + Tarjeta)</label>
-                  <div id="totalBox" class="input readonly">—</div>
-                </div>
-                <div class="field">
-                  <label>Diferencia (Total − Ticket)</label>
-                  <div id="diffBox" class="input readonly">—</div>
-                </div>
-              </div>
-
-              <div id="diffWarn" class="warnbox hidden"></div>
-
-              <div class="actions sticky-actions">
-                <button id="btnSave" class="btn primary">Guardar</button>
-                <button id="btnClear" class="btn">Limpiar</button>
-                <button id="btnDelete" class="btn danger ghost">Borrar</button>
-              </div>
-
-              <div id="saveMsg" class="msg"></div>
-            </div>
+        <div class="card card-surface">
+          <div class="card-head">
+            <h2>Entrada</h2>
+            <div class="muted small">Efectivo, Tarjeta, Gastos y Ticket. Diferencia: (Efe+Tar) − Ticket.</div>
           </div>
 
-          <div class="card card-side">
-            <div class="card-head row space wrap">
+          <div class="form">
+            <div class="row gap wrap">
+
+              <div class="field">
+                <label>Fecha</label>
+                <div class="datebar">
+                  <input id="dateInput" type="date" class="input" />
+                  <button id="btnToday" class="btn ghost">Hoy</button>
+                  <button id="btnYesterday" class="btn ghost">Ayer</button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Tienda (selector interno)</label>
+                <select id="storeInput" class="input">
+                  <option value="san_pablo">San Pablo</option>
+                  <option value="san_lesmes">San Lesmes</option>
+                  <option value="santiago">Santiago</option>
+                </select>
+                <div class="muted small">Tip: Usa los botones de tienda arriba (más rápido).</div>
+              </div>
+
+            </div>
+
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Efectivo (€)</label>
+                <input id="cashInput" class="input money" inputmode="decimal" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Tarjeta (€)</label>
+                <input id="cardInput" class="input money" inputmode="decimal" placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Gastos (€)</label>
+                <input id="expensesInput" class="input money" inputmode="decimal" placeholder="0,00" />
+              </div>
+              <div class="field">
+                <label>Ticket total (€)</label>
+                <input id="ticketInput" class="input money" inputmode="decimal" placeholder="0,00" />
+              </div>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="row gap wrap">
+              <div class="field">
+                <label>Total (Efectivo + Tarjeta)</label>
+                <div id="totalBox" class="input readonly">—</div>
+              </div>
+              <div class="field">
+                <label>Diferencia (Total − Ticket)</label>
+                <div id="diffBox" class="input readonly">—</div>
+              </div>
+            </div>
+
+            <div id="diffWarn" class="warnbox hidden"></div>
+
+            <div class="actions sticky-actions">
+              <button id="btnSave" class="btn primary">Guardar</button>
+              <button id="btnClear" class="btn">Limpiar</button>
+              <button id="btnDelete" class="btn danger ghost">Borrar</button>
+            </div>
+
+            <div id="saveMsg" class="msg"></div>
+
+            <div class="hr"></div>
+
+            <div class="row space wrap">
               <div>
-                <h2>Historial del día</h2>
+                <div class="muted small">Historial del día</div>
                 <div class="muted small" id="dayHint">—</div>
               </div>
               <div class="row gap wrap">
@@ -214,13 +199,12 @@
 
             <div id="dayList" class="daylist"></div>
           </div>
-
         </div>
       </section>
 
       <!-- TAB: RESUMEN -->
       <section class="tab-section" id="tab-summary">
-        <div class="card">
+        <div class="card card-surface">
           <div class="card-head">
             <h2>Resumen del día</h2>
             <div class="muted small">Totales por tienda y global · semáforo por diferencia.</div>
@@ -256,7 +240,7 @@
 
       <!-- TAB: REPORTES -->
       <section class="tab-section" id="tab-reports">
-        <div class="card">
+        <div class="card card-surface">
           <div class="card-head row space wrap">
             <div>
               <h2>Reportes</h2>
@@ -294,7 +278,7 @@
             <div class="kpi"><div class="k">Promedio/día</div><div class="v" id="kpiAvg">—</div></div>
           </div>
 
-          <div class="charts">
+          <div class="charts charts-new">
             <div class="chart-card">
               <h3>Serie (Total) + media</h3>
               <canvas id="chartTotal" height="120"></canvas>
