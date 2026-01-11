@@ -1,91 +1,98 @@
 /* =========================
-   app.js
-   ARSLAN — Ventas 3 tiendas
-   ✅ Email/Password obligatorio
-   ✅ Multi-dispositivo real (misma cuenta => mismos datos)
-   ✅ NUNCA borra la nube si un dispositivo está vacío
-   ✅ Sync seguro: merge por registro + updatedAt
-   ✅ Borrado con confirmación + sincronizado en todos (tombstone deletedAt)
+   ARSLAN — Facturación Cloud (Email/Password)
+   - Multi-dispositivo real
+   - PULL + MERGE primero (no borra nube si local vacío)
+   - Diferencia ticket: (Efe + Tar) - Ticket  => negativo = falta
+   - Semáforo: |dif|<=10 verde, <=20 amarillo, >20 rojo + advertencia
 ========================= */
-
-/* ---------- Constantes ---------- */
-const APP_KEY = "ARSLAN_SALES_V1_LOCAL";
-const SETTINGS_KEY = "ARSLAN_SALES_V1_SETTINGS";
-const WA_PHONE = "34631667893"; // cambia si quieres
 
 const STORES = [
   { id: "san_pablo", name: "San Pablo" },
   { id: "san_lesmes", name: "San Lesmes" },
-  { id: "santiago", name: "Santiago" }
+  { id: "santiago", name: "Santiago" },
 ];
 
-/* ---------- Helpers DOM ---------- */
+const LOCAL_KEY_PREFIX = "ARSLAN_FACT_CLOUD_V1__"; // + uid
+const LOCAL_SETTINGS_PREFIX = "ARSLAN_FACT_CLOUD_SETTINGS_V1__"; // + uid
+
+const WA_PHONE = "34631667893"; // tu número WhatsApp (como antes)
+
+/* ---------- DOM ---------- */
 const $ = (id) => document.getElementById(id);
 
-/* ---------- Vistas ---------- */
-const loginView = $("loginView");
+const authView = $("authView");
 const appView = $("appView");
 
-/* Login */
 const emailInput = $("emailInput");
 const passInput = $("passInput");
-const btnLogin = $("btnLogin");
+const btnSignIn = $("btnSignIn");
 const btnResetPass = $("btnResetPass");
-const loginMsg = $("loginMsg");
+const btnThemeAuth = $("btnThemeAuth");
+const authMsg = $("authMsg");
 
-/* Topbar */
 const cloudStatus = $("cloudStatus");
-const btnTheme = $("btnTheme");
-const btnThemeLogin = $("btnThemeLogin");
-const btnLogout = $("btnLogout");
-const btnExport = $("btnExport");
-const importFile = $("importFile");
+const cloudStatusTop = $("cloudStatusTop");
 
-/* Tabs */
 const tabs = $("tabs");
 const tabButtons = tabs ? Array.from(tabs.querySelectorAll(".tab")) : [];
 const tabSections = Array.from(document.querySelectorAll(".tab-section"));
 
-/* Mobile head */
-const mobileHead = $("mobileHead");
 const dateInput = $("dateInput");
 const btnToday = $("btnToday");
 const btnYesterday = $("btnYesterday");
-const btnTomorrow = $("btnTomorrow");
 
-/* Desktop date/store */
-const dateInputDesk = $("dateInputDesk");
-const btnTodayDesk = $("btnTodayDesk");
-const btnYesterdayDesk = $("btnYesterdayDesk");
-const btnTomorrowDesk = $("btnTomorrowDesk");
 const storeInput = $("storeInput");
+const storeQuick = $("storeQuick");
 
-/* Entry fields */
 const cashInput = $("cashInput");
 const cardInput = $("cardInput");
-const expensesInput = $("expensesInput");
 const ticketInput = $("ticketInput");
+const expensesInput = $("expensesInput");
+const cashCountedInput = $("cashCountedInput");
+const notesInput = $("notesInput");
+
 const totalBox = $("totalBox");
 const diffBox = $("diffBox");
+const diffWarn = $("diffWarn");
+const cashDiffBox = $("cashDiffBox");
+const cashWarn = $("cashWarn");
+
 const btnSave = $("btnSave");
 const btnClear = $("btnClear");
 const btnDelete = $("btnDelete");
-const btnGoSummary = $("btnGoSummary");
+const btnWhatsAppDay = $("btnWhatsAppDay");
+const btnCopyDay = $("btnCopyDay");
+const dayList = $("dayList");
+const dayHint = $("dayHint");
 const saveMsg = $("saveMsg");
 
-/* Day summary */
 const sumSP = $("sumSP");
 const sumSP2 = $("sumSP2");
 const sumSL = $("sumSL");
 const sumSL2 = $("sumSL2");
 const sumSA = $("sumSA");
 const sumSA2 = $("sumSA2");
-const sumG = $("sumG");
-const sumG2 = $("sumG2");
-const dayHint = $("dayHint");
-const dayList = $("dayList");
-const btnCopyDay = $("btnCopyDay");
-const btnWhatsDay = $("btnWhatsDay");
+const sumGlobal = $("sumGlobal");
+const sumGlobal2 = $("sumGlobal2");
+
+const semSP = $("semSP");
+const semSL = $("semSL");
+const semSA = $("semSA");
+const semGlobal = $("semGlobal");
+
+const goalDailySP = $("goalDailySP");
+const goalMonthlySP = $("goalMonthlySP");
+const goalDailySL = $("goalDailySL");
+const goalMonthlySL = $("goalMonthlySL");
+const goalDailySA = $("goalDailySA");
+const goalMonthlySA = $("goalMonthlySA");
+const goalDailyG = $("goalDailyG");
+const goalMonthlyG = $("goalMonthlyG");
+const btnSaveGoals = $("btnSaveGoals");
+const goalTodayPct = $("goalTodayPct");
+const goalTodayTxt = $("goalTodayTxt");
+const goalMonthPct = $("goalMonthPct");
+const goalMonthTxt = $("goalMonthTxt");
 
 /* Reports */
 const reportType = $("reportType");
@@ -93,1160 +100,164 @@ const reportStore = $("reportStore");
 const rangeFrom = $("rangeFrom");
 const rangeTo = $("rangeTo");
 const btnRefresh = $("btnRefresh");
-const btnWhatsReport = $("btnWhatsReport");
-const btnExportCSV = $("btnExportCSV");
 
-const kCash = $("kCash");
-const kCard = $("kCard");
-const kTotal = $("kTotal");
-const kExp = $("kExp");
-const kTicket = $("kTicket");
-const kDiff = $("kDiff");
+const kpiCash = $("kpiCash");
+const kpiCard = $("kpiCard");
+const kpiTotal = $("kpiTotal");
+const kpiTicket = $("kpiTicket");
+const kpiDiff = $("kpiDiff");
+const kpiAvg = $("kpiAvg");
 
-const repTableBody = $("repTable").querySelector("tbody");
-const repHint = $("repHint");
+const reportTableBody = $("reportTable").querySelector("tbody");
+const tableHint = $("tableHint");
 
 const rankList = $("rankList");
-const rankHint = $("rankHint");
-const pctSP = $("pctSP");
-const pctSP2 = $("pctSP2");
-const pctSL = $("pctSL");
-const pctSL2 = $("pctSL2");
-const pctSA = $("pctSA");
-const pctSA2 = $("pctSA2");
+const bestStore = $("bestStore");
+const bestStoreTxt = $("bestStoreTxt");
+const worstStore = $("worstStore");
+const worstStoreTxt = $("worstStoreTxt");
+
+/* Menu */
+const btnMenu = $("btnMenu");
+const menuOverlay = $("menuOverlay");
+const btnCloseMenu = $("btnCloseMenu");
+const btnTheme = $("btnTheme");
+const btnExportJSON = $("btnExportJSON");
+const importFile = $("importFile");
+const btnExportCSV = $("btnExportCSV");
+const btnWhatsAppReport = $("btnWhatsAppReport");
+const btnWhatsAppReportFull = $("btnWhatsAppReportFull");
+const btnSignOut = $("btnSignOut");
+
+/* Confirm */
+const confirmOverlay = $("confirmOverlay");
+const confirmTitle = $("confirmTitle");
+const confirmText = $("confirmText");
+const btnConfirmClose = $("btnConfirmClose");
+const btnConfirmCancel = $("btnConfirmCancel");
+const btnConfirmOk = $("btnConfirmOk");
 
 /* Charts */
-let chTotal = null;
-let chMix = null;
-let chTicket = null;
+let chartTotal = null;
+let chartMix = null;
+let chartTicket = null;
 
-/* FAB */
-const btnTop = $("btnTop");
-
-/* ---------- Estado local ---------- */
-let state = loadState();
-let settings = loadSettings();
-
-/* ---------- Cloud state ---------- */
-let cloud = {
-  enabled: false,
-  ready: false,
-  uid: null,
-  entriesRef: null,
-  unsubscribed: false,
-  applyingRemote: false
+/* ---------- State ---------- */
+let UID = null;
+let state = { entries: {} };
+let settings = {
+  theme: "light",
+  goals: null
 };
 
-/* =========================
-   INIT
-========================= */
-applyTheme(settings.theme || "light");
-initDates();
-bindEvents();
-initTabs();
-initFAB();
+let cloud = {
+  ready: false,
+  stateRef: null,
+  settingsRef: null,
+  unsubState: null,
+  unsubSettings: null,
+  pushing: false,
+  lastRemoteHash: null
+};
 
-showLogin();
+/* ============== Helpers ============== */
+function toISODate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function addDaysISO(dateISO, days){
+  const d = new Date(dateISO + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+function parseMoney(str){
+  if (!str) return 0;
+  const clean = String(str).replace(/\./g,"").replace(",",".").replace(/[^\d.-]/g,"");
+  const n = Number(clean);
+  return Number.isFinite(n) ? n : 0;
+}
+function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
+function fmtInput(n){
+  const v = Number(n||0);
+  return v ? String(v).replace(".", ",") : "";
+}
+function formatMoney(n){
+  const v = Number(n || 0);
+  return v.toLocaleString("es-ES", { style:"currency", currency:"EUR" });
+}
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function weekdayES(dateISO){
+  const d = new Date(dateISO + "T00:00:00");
+  const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  return days[d.getDay()];
+}
+function dailyLabelWithWeekday(dateISO){
+  return `${dateISO} (${weekdayES(dateISO)})`;
+}
+function storeName(id){ return STORES.find(s => s.id === id)?.name || id; }
+function normalizeMoneyInput(el){ el.value = String(el.value || "").replace(/[^\d,.-]/g,""); }
 
-/* =========================
-   EVENTS
-========================= */
-function bindEvents(){
-  btnTheme?.addEventListener("click", toggleTheme);
-  btnThemeLogin?.addEventListener("click", toggleTheme);
+function keyOf(dateISO, storeId){ return `${dateISO}__${storeId}`; }
+function getEntry(dateISO, storeId){ return state.entries[keyOf(dateISO, storeId)] || null; }
 
-  btnLogin?.addEventListener("click", doLogin);
-  passInput?.addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
-
-  btnResetPass?.addEventListener("click", resetPassword);
-
-  btnLogout?.addEventListener("click", async ()=>{
-    try{
-      await window.__firebase?.auth?.signOut();
-    }catch(e){}
-    cloudReset();
-    showLogin();
-  });
-
-  // Date buttons (mobile + desk)
-  btnToday?.addEventListener("click", ()=> setSelectedDate(toISODate(new Date())));
-  btnYesterday?.addEventListener("click", ()=> setSelectedDate(addDaysISO(getSelectedDate(), -1)));
-  btnTomorrow?.addEventListener("click", ()=> setSelectedDate(addDaysISO(getSelectedDate(),  1)));
-
-  btnTodayDesk?.addEventListener("click", ()=> setSelectedDate(toISODate(new Date())));
-  btnYesterdayDesk?.addEventListener("click", ()=> setSelectedDate(addDaysISO(getSelectedDate(), -1)));
-  btnTomorrowDesk?.addEventListener("click", ()=> setSelectedDate(addDaysISO(getSelectedDate(),  1)));
-
-  dateInput?.addEventListener("change", ()=> onDateOrStoreChange());
-  dateInputDesk?.addEventListener("change", ()=> onDateOrStoreChange());
-  storeInput?.addEventListener("change", ()=> onDateOrStoreChange());
-
-  // Store quick buttons
-  document.querySelectorAll(".storebtn").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const s = btn.dataset.store;
-      if(!s) return;
-      storeInput.value = s;
-      highlightStoreQuick(s);
-      fillEntry();
-      updateComputed();
-    });
-  });
-
-  // Money inputs
-  [cashInput, cardInput, expensesInput, ticketInput].forEach(el=>{
-    el.addEventListener("input", ()=>{
-      normalizeMoneyInput(el);
-      updateComputed();
-    });
-  });
-
-  btnSave?.addEventListener("click", onSave);
-  btnClear?.addEventListener("click", onClear);
-  btnDelete?.addEventListener("click", onDelete);
-
-  btnGoSummary?.addEventListener("click", ()=> activateTab("tab-day"));
-
-  btnCopyDay?.addEventListener("click", async ()=>{
-    const text = buildDayText(getSelectedDate());
-    await copyToClipboard(text);
-    toast(saveMsg, "Copiado ✅", true);
-  });
-
-  btnWhatsDay?.addEventListener("click", ()=>{
-    openWhatsApp(buildDayText(getSelectedDate()));
-  });
-
-  btnRefresh?.addEventListener("click", refreshReports);
-  btnWhatsReport?.addEventListener("click", ()=> openWhatsApp(buildReportText()));
-  btnExportCSV?.addEventListener("click", exportCSV);
-
-  btnExport?.addEventListener("click", exportBackup);
-  importFile?.addEventListener("change", importBackup);
+function calcTotal(e){ return round2(Number(e?.cash||0) + Number(e?.card||0)); }
+// ✅ DIF TICKET (correcto): total - ticket  => negativo = falta
+function calcTicketDiff(e){ return round2(calcTotal(e) - Number(e?.ticket||0)); }
+// Caja simplificada: esperado = efectivo - gastos
+function calcExpectedCash(e){ return round2(Number(e?.cash||0) - Number(e?.expenses||0)); }
+function calcCashDiff(e){
+  const counted = Number(e?.cashCounted||0);
+  return round2(counted - calcExpectedCash(e));
 }
 
-function initTabs(){
-  function activate(btn){
-    tabButtons.forEach(b => b.classList.toggle("active", b === btn));
-    tabSections.forEach(s => s.classList.toggle("active", s.id === btn.dataset.tab));
-    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
-  }
-  tabButtons.forEach(btn => btn.addEventListener("click", ()=> activate(btn)));
-}
-function activateTab(id){
-  const btn = tabButtons.find(b=>b.dataset.tab===id);
-  if(btn) btn.click();
+function diffHuman(d){
+  const v = round2(Number(d||0));
+  const abs = Math.abs(v).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (Math.abs(v) <= 0.01) return "✅ CUADRA";
+  if (v < 0) return `❌ FALTAN ${abs} €`;
+  return `⚠️ SOBRAN ${abs} €`;
 }
 
-function initFAB(){
-  window.addEventListener("scroll", ()=>{
-    const show = window.scrollY > 500;
-    btnTop?.classList.toggle("show", show);
-  });
-  btnTop?.addEventListener("click", ()=>{
-    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch { window.scrollTo(0,0); }
-  });
+function diffLevel(d){
+  const v = Math.abs(Number(d||0));
+  if (v <= 10) return "ok";
+  if (v <= 20) return "warn";
+  return "bad";
 }
 
-/* =========================
-   THEME
-========================= */
-function toggleTheme(){
-  const current = document.documentElement.getAttribute("data-theme") || "light";
-  const next = (current === "dark") ? "light" : "dark";
-  applyTheme(next);
-  settings.theme = next;
-  saveSettings();
-  refreshReports();
-}
+function setBoxSemaforo(boxEl, warnEl, diff, contextLabel){
+  boxEl.classList.remove("ok","warn","bad");
+  warnEl.classList.remove("ok","warn","bad");
 
-function applyTheme(theme){
-  if (theme === "dark") document.documentElement.setAttribute("data-theme","dark");
-  else document.documentElement.removeAttribute("data-theme");
-}
+  if (boxEl.classList.contains("readonly") === false) boxEl.classList.add("readonly");
 
-/* =========================
-   DATES / STORE
-========================= */
-function initDates(){
-  const today = toISODate(new Date());
-  setSelectedDate(today);
-  storeInput.value = "san_pablo";
-  highlightStoreQuick("san_pablo");
+  const level = diffLevel(diff);
+  boxEl.classList.add(level);
+  warnEl.classList.add(level);
 
-  // default report range = month to today
-  const firstDay = today.slice(0,7) + "-01";
-  rangeFrom.value = firstDay;
-  rangeTo.value = today;
-}
-
-function setSelectedDate(iso){
-  if(dateInput) dateInput.value = iso;
-  if(dateInputDesk) dateInputDesk.value = iso;
-  onDateOrStoreChange();
-}
-function getSelectedDate(){
-  return (dateInput && dateInput.value) || (dateInputDesk && dateInputDesk.value) || toISODate(new Date());
-}
-function onDateOrStoreChange(){
-  fillEntry();
-  updateComputed();
-  renderDaySummary();
-  refreshReports();
-}
-function highlightStoreQuick(storeId){
-  document.querySelectorAll(".storebtn").forEach(b=>{
-    b.classList.toggle("active", b.dataset.store === storeId);
-  });
-}
-
-/* =========================
-   LOGIN + CLOUD INIT (Email/Password)
-========================= */
-function showLogin(){
-  loginView.classList.remove("hidden");
-  appView.classList.add("hidden");
-  setCloudBadge("warn","☁️ Nube: desconectada");
-  showMsg(loginMsg, "", null);
-  passInput.value = "";
-  // emailInput no lo limpio para comodidad
-  emailInput.focus();
-}
-
-function showApp(){
-  loginView.classList.add("hidden");
-  appView.classList.remove("hidden");
-  fillEntry();
-  updateComputed();
-  renderDaySummary();
-  refreshReports();
-}
-
-async function doLogin(){
-  showMsg(loginMsg, "Conectando…", "ok");
-
-  if(!window.__firebase?.auth || !window.__firebase?.db){
-    showMsg(loginMsg, "Firebase no está configurado en index.html.", "err");
-    return;
-  }
-
-  const email = (emailInput.value || "").trim();
-  const pass = (passInput.value || "").trim();
-
-  if(!email || !pass){
-    showMsg(loginMsg, "Rellena email y contraseña.", "err");
-    return;
-  }
-
-  try{
-    setCloudBadge("warn","☁️ Nube: iniciando sesión…");
-    const cred = await window.__firebase.auth.signInWithEmailAndPassword(email, pass);
-
-    const user = cred.user;
-    if(!user){
-      showMsg(loginMsg, "No se pudo iniciar sesión.", "err");
-      setCloudBadge("bad","☁️ Nube: sin sesión");
-      return;
-    }
-
-    settings.lastEmail = email;
-    saveSettings();
-
-    await initCloudForUser(user.uid);
-    showMsg(loginMsg, "Acceso correcto ✅", "ok");
-    showApp();
-  }catch(err){
-    console.error(err);
-    const code = err?.code || "";
-    if(code.includes("auth/wrong-password") || code.includes("auth/invalid-credential")){
-      showMsg(loginMsg, "Contraseña incorrecta.", "err");
-    }else if(code.includes("auth/user-not-found")){
-      showMsg(loginMsg, "Usuario no encontrado. Revisa el email.", "err");
-    }else if(code.includes("auth/too-many-requests")){
-      showMsg(loginMsg, "Demasiados intentos. Espera y prueba otra vez.", "err");
-    }else{
-      showMsg(loginMsg, "Error: " + (err?.message || code || "desconocido"), "err");
-    }
-    setCloudBadge("bad","☁️ Nube: error login");
+  if (level === "ok"){
+    warnEl.textContent = "";
+  } else if (level === "warn"){
+    warnEl.textContent = `⚠️ Aviso: ${contextLabel} ${diffHuman(diff)}`;
+  } else {
+    warnEl.textContent = `🚨 ALERTA: ${contextLabel} ${diffHuman(diff)} (más de 20€)`;
   }
 }
 
-async function resetPassword(){
-  const email = (emailInput.value || "").trim();
-  if(!email){
-    showMsg(loginMsg, "Escribe tu email para enviar el reset.", "err");
-    return;
-  }
-  try{
-    await window.__firebase.auth.sendPasswordResetEmail(email);
-    showMsg(loginMsg, "Email de recuperación enviado ✅", "ok");
-  }catch(err){
-    showMsg(loginMsg, "Error reset: " + (err?.message || err?.code || "desconocido"), "err");
-  }
-}
-
-function cloudReset(){
-  cloud.enabled = false;
-  cloud.ready = false;
-  cloud.uid = null;
-  cloud.entriesRef = null;
-  cloud.unsubscribed = false;
-  cloud.applyingRemote = false;
-}
-
-/* ==============
-   Cloud init:
-   - ruta por usuario (UID)
-   - PULL inicial (no pisa local si nube vacía)
-   - Listener en entries
-   - Push seguro solo por registro (update)
-============== */
-async function initCloudForUser(uid){
-  cloudReset();
-
-  cloud.enabled = true;
-  cloud.uid = uid;
-
-  const db = window.__firebase.db;
-  const base = db.ref("arslan_facturacion/users/" + uid);
-  const entriesRef = base.child("entries");
-  cloud.entriesRef = entriesRef;
-
-  setCloudBadge("warn","☁️ Nube: sincronizando…");
-
-  // 1) PULL inicial
-  try{
-    const snap = await entriesRef.get();
-    if(snap.exists()){
-      const remoteEntries = snap.val() || {};
-      applyRemoteEntries(remoteEntries, true);
-    }
-  }catch(e){
-    console.warn("Cloud pull failed:", e);
-    setCloudBadge("warn","☁️ Nube: offline (local)");
-    return;
-  }
-
-  // 2) Listener realtime
-  entriesRef.on("child_added", (snap)=> applyRemoteOne(snap.key, snap.val()), (err)=> cloudListenerError(err));
-  entriesRef.on("child_changed", (snap)=> applyRemoteOne(snap.key, snap.val()), (err)=> cloudListenerError(err));
-  // child_removed no lo usamos porque nosotros no borramos físicamente; usamos deletedAt.
-
-  cloud.ready = true;
-  setCloudBadge("ok","☁️ Nube: online");
-
-  // 3) Push “solo si local tiene cambios más nuevos”
-  pushLocalNewerOnly().catch(()=>{});
-}
-
-function cloudListenerError(err){
-  console.error("Cloud listener error:", err);
-  setCloudBadge("bad","☁️ DB: " + (err?.code || "error"));
-}
-
-/* =========================
-   STORAGE
-========================= */
-function loadState(){
-  try{
-    const raw = localStorage.getItem(APP_KEY);
-    if(!raw) return { entries:{} };
-    const parsed = JSON.parse(raw);
-    if(!parsed.entries) parsed.entries = {};
-    return parsed;
-  }catch{
-    return { entries:{} };
-  }
-}
-function saveState(){
-  localStorage.setItem(APP_KEY, JSON.stringify(state));
-}
-
-function loadSettings(){
-  try{
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if(!raw) return { theme:"light", lastEmail:"" };
-    const parsed = JSON.parse(raw);
-    if(!parsed.theme) parsed.theme = "light";
-    return parsed;
-  }catch{
-    return { theme:"light", lastEmail:"" };
-  }
-}
-function saveSettings(){
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-}
-
-/* =========================
-   ENTRY MODEL
-========================= */
-function entryId(dateISO, storeId){
-  return `${dateISO}__${storeId}`;
-}
-function getEntry(dateISO, storeId){
-  const id = entryId(dateISO, storeId);
-  const e = state.entries[id] || null;
-  if(e && e.deletedAt) return null; // hide deleted
-  return e;
-}
-function getEntryRaw(id){
-  return state.entries[id] || null;
-}
-
-function setEntryLocal(dateISO, storeId, payload){
-  const id = entryId(dateISO, storeId);
-  const now = Date.now();
-  state.entries[id] = {
-    id,
-    date: dateISO,
-    store: storeId,
-    cash: payload.cash || 0,
-    card: payload.card || 0,
-    expenses: payload.expenses || 0,
-    ticket: payload.ticket || 0,
-    deletedAt: payload.deletedAt || 0,
-    updatedAt: payload.updatedAt || now
-  };
-  saveState();
-}
-function markDeletedLocal(dateISO, storeId){
-  const id = entryId(dateISO, storeId);
-  const now = Date.now();
-  const prev = state.entries[id] || { id, date:dateISO, store:storeId };
-  state.entries[id] = { ...prev, deletedAt: now, updatedAt: now };
-  saveState();
-}
-
-/* =========================
-   CLOUD MERGE
-========================= */
-function applyRemoteEntries(remoteEntries, silent){
-  cloud.applyingRemote = true;
-  try{
-    let changed = false;
-    for(const [id, remote] of Object.entries(remoteEntries || {})){
-      if(!remote || !remote.id) continue;
-      const local = getEntryRaw(id);
-      const rU = Number(remote.updatedAt || 0);
-      const lU = Number(local?.updatedAt || 0);
-      if(!local || rU > lU){
-        state.entries[id] = remote;
-        changed = true;
-      }
-    }
-    if(changed) saveState();
-  }finally{
-    cloud.applyingRemote = false;
-  }
-  if(!silent){
-    fillEntry();
-    updateComputed();
-    renderDaySummary();
-    refreshReports();
-  }
-}
-
-function applyRemoteOne(id, remote){
-  if(!id || !remote) return;
-
-  cloud.applyingRemote = true;
-  try{
-    const local = getEntryRaw(id);
-    const rU = Number(remote.updatedAt || 0);
-    const lU = Number(local?.updatedAt || 0);
-
-    // Si remoto es más nuevo -> aplicar
-    if(!local || rU > lU){
-      state.entries[id] = remote;
-      saveState();
-    } else {
-      // Si local es más nuevo -> re-push (evita divergencias)
-      // (solo si estamos online y no en medio de apply)
-      if(cloud.ready && cloud.enabled){
-        pushOneToCloud(local).catch(()=>{});
-      }
-    }
-  }finally{
-    cloud.applyingRemote = false;
-  }
-
-  fillEntry();
-  updateComputed();
-  renderDaySummary();
-  refreshReports();
-}
-
-async function pushLocalNewerOnly(){
-  if(!cloud.ready || !cloud.entriesRef) return;
-
-  // para no ser agresivos: solo revisa algunos (pero aquí hacemos todo; suele ser poco)
-  const snap = await cloud.entriesRef.get();
-  const remoteMap = snap.exists() ? (snap.val() || {}) : {};
-
-  const updates = {};
-  for(const [id, local] of Object.entries(state.entries || {})){
-    if(!local || !local.id) continue;
-    const remote = remoteMap[id];
-    const lU = Number(local.updatedAt || 0);
-    const rU = Number(remote?.updatedAt || 0);
-    if(!remote || lU > rU){
-      updates[id] = local;
-    }
-  }
-  if(Object.keys(updates).length){
-    // update por mapa = merge, no pisa el árbol entero
-    await cloud.entriesRef.update(updates);
-  }
-}
-
-async function pushOneToCloud(entryObj){
-  if(!cloud.ready || !cloud.entriesRef || !entryObj?.id) return;
-  await cloud.entriesRef.child(entryObj.id).set(entryObj);
-}
-
-/* =========================
-   ENTRY UI
-========================= */
-function fillEntry(){
-  const d = getSelectedDate();
-  const s = storeInput.value;
-  highlightStoreQuick(s);
-
-  const e = getEntry(d, s);
-  if(e){
-    cashInput.value = fmtInput(e.cash);
-    cardInput.value = fmtInput(e.card);
-    expensesInput.value = fmtInput(e.expenses);
-    ticketInput.value = fmtInput(e.ticket);
-  }else{
-    cashInput.value = "";
-    cardInput.value = "";
-    expensesInput.value = "";
-    ticketInput.value = "";
-  }
-  hideMsg(saveMsg);
-}
-
-function updateComputed(){
-  const cash = round2(parseMoney(cashInput.value));
-  const card = round2(parseMoney(cardInput.value));
-  const exp  = round2(parseMoney(expensesInput.value));
-  const tick = round2(parseMoney(ticketInput.value));
-  const total = round2(cash + card);
-  const diff = round2(tick - total);
-
-  totalBox.textContent = `${formatMoney(total)}  (Efe ${formatMoney(cash)} + Tar ${formatMoney(card)})`;
-  diffBox.textContent = (tick===0 && total===0) ? "—" : `${formatDiff(diff)}  (Ticket ${formatMoney(tick)} - Total ${formatMoney(total)})`;
-
-  setStatusClass(diffBox, diff);
-
-  // gastos solo informativo, no afecta total
-  // (si quieres que afecte, dímelo y lo cambio)
-  return { cash, card, expenses: exp, ticket: tick, total, diff };
-}
-
-function onClear(){
-  cashInput.value = "";
-  cardInput.value = "";
-  expensesInput.value = "";
-  ticketInput.value = "";
-  updateComputed();
-  hideMsg(saveMsg);
-}
-
-async function onSave(){
-  const dateISO = getSelectedDate();
-  const storeId = storeInput.value;
-  if(!dateISO){
-    toast(saveMsg, "Selecciona una fecha.", false);
-    return;
-  }
-
-  const calc = updateComputed();
-  const now = Date.now();
-  const payload = {
-    cash: calc.cash,
-    card: calc.card,
-    expenses: calc.expenses,
-    ticket: calc.ticket,
-    deletedAt: 0,
-    updatedAt: now
-  };
-
-  setEntryLocal(dateISO, storeId, payload);
-  toast(saveMsg, `Guardado ✅ (${storeName(storeId)} · Total ${formatMoney(calc.total)} · Ticket ${formatMoney(calc.ticket)} · Dif ${formatDiff(calc.diff)})`, true);
-
-  renderDaySummary();
-  refreshReports();
-
-  // push seguro (solo este registro)
-  if(cloud.ready && cloud.entriesRef && !cloud.applyingRemote){
-    try{
-      await cloud.entriesRef.child(entryId(dateISO, storeId)).set(state.entries[entryId(dateISO, storeId)]);
-    }catch(e){
-      console.warn("Cloud push failed:", e);
-      setCloudBadge("warn","☁️ Nube: offline (local)");
-    }
-  }
-}
-
-async function onDelete(){
-  const dateISO = getSelectedDate();
-  const storeId = storeInput.value;
-
-  const e = getEntry(dateISO, storeId);
-  if(!e){
-    toast(saveMsg, "No existe registro para borrar.", false);
-    return;
-  }
-
-  const msg1 = `⚠️ Vas a borrar: ${storeName(storeId)} · ${dateISO}\n\nEsto se borrará en TODOS los dispositivos con esta cuenta.\n\n¿Continuar?`;
-  if(!confirm(msg1)) return;
-
-  const msg2 = `CONFIRMACIÓN FINAL:\nSe borrará en todos los dispositivos.\n\n¿Seguro 100%?`;
-  if(!confirm(msg2)) return;
-
-  // tombstone local
-  markDeletedLocal(dateISO, storeId);
-
-  toast(saveMsg, "Borrado ✅ (sincronizado)", true);
-
-  fillEntry();
-  updateComputed();
-  renderDaySummary();
-  refreshReports();
-
-  // push tombstone
-  if(cloud.ready && cloud.entriesRef){
-    try{
-      await cloud.entriesRef.child(entryId(dateISO, storeId)).set(state.entries[entryId(dateISO, storeId)]);
-    }catch(e){
-      console.warn("Cloud delete push failed:", e);
-      setCloudBadge("warn","☁️ Nube: offline (local)");
-    }
-  }
-}
-
-/* =========================
-   DAY SUMMARY
-========================= */
-function computeDay(dateISO){
-  const out = {
-    byStore: {},
-    global: { cash:0, card:0, expenses:0, ticket:0, total:0, diff:0 }
-  };
-
-  for(const s of STORES){
-    const e = getEntry(dateISO, s.id);
-    const cash = Number(e?.cash || 0);
-    const card = Number(e?.card || 0);
-    const exp = Number(e?.expenses || 0);
-    const ticket = Number(e?.ticket || 0);
-    const total = cash + card;
-    const diff = round2(ticket - total);
-
-    out.byStore[s.id] = { cash, card, expenses: exp, ticket, total, diff, exists: !!e };
-
-    out.global.cash += cash;
-    out.global.card += card;
-    out.global.expenses += exp;
-    out.global.ticket += ticket;
-    out.global.total += total;
-  }
-  out.global.diff = round2(out.global.ticket - out.global.total);
-  return out;
-}
-
-function renderDaySummary(){
-  const d = getSelectedDate();
-  const day = computeDay(d);
-
-  const sp = day.byStore.san_pablo;
-  const sl = day.byStore.san_lesmes;
-  const sa = day.byStore.santiago;
-  const g  = day.global;
-
-  sumSP.textContent = formatMoney(sp.total);
-  sumSP2.textContent = `Efe ${formatMoney(sp.cash)} · Tar ${formatMoney(sp.card)} · Gastos ${formatMoney(sp.expenses)} · Ticket ${formatMoney(sp.ticket)} · Dif ${formatDiff(sp.diff)}`;
-
-  sumSL.textContent = formatMoney(sl.total);
-  sumSL2.textContent = `Efe ${formatMoney(sl.cash)} · Tar ${formatMoney(sl.card)} · Gastos ${formatMoney(sl.expenses)} · Ticket ${formatMoney(sl.ticket)} · Dif ${formatDiff(sl.diff)}`;
-
-  sumSA.textContent = formatMoney(sa.total);
-  sumSA2.textContent = `Efe ${formatMoney(sa.cash)} · Tar ${formatMoney(sa.card)} · Gastos ${formatMoney(sa.expenses)} · Ticket ${formatMoney(sa.ticket)} · Dif ${formatDiff(sa.diff)}`;
-
-  sumG.textContent = formatMoney(g.total);
-  sumG2.textContent = `Efe ${formatMoney(g.cash)} · Tar ${formatMoney(g.card)} · Gastos ${formatMoney(g.expenses)} · Ticket ${formatMoney(g.ticket)} · Dif ${formatDiff(g.diff)}`;
-
-  const count = [sp,sl,sa].filter(x=>x.exists).length;
-  dayHint.textContent = `${d} (${weekdayES(d)}) · registros: ${count}/3`;
-
-  // list
-  dayList.innerHTML = "";
-  for(const s of STORES){
-    const it = day.byStore[s.id];
-    const div = document.createElement("div");
-    div.className = "dayitem";
-    div.innerHTML = `
-      <div>
-        <div class="k">${escapeHtml(s.name)}</div>
-        <div class="muted small">Total ${formatMoney(it.total)} · Ticket ${formatMoney(it.ticket)} · Dif ${formatDiff(it.diff)} · Gastos ${formatMoney(it.expenses)}</div>
-      </div>
-      <div class="v">${it.exists ? "✅" : "—"}</div>
-    `;
-    div.addEventListener("click", ()=>{
-      storeInput.value = s.id;
-      highlightStoreQuick(s.id);
-      fillEntry();
-      updateComputed();
-      activateTab("tab-entry");
-      cashInput.focus();
-    });
-    dayList.appendChild(div);
-  }
-}
-
-/* =========================
-   REPORTS (daily/weekly/monthly)
-========================= */
-function refreshReports(){
-  const type = reportType.value;
-  const store = reportStore.value;
-  const from = rangeFrom.value || null;
-  const to = rangeTo.value || null;
-
-  const rows = buildReport(type, store, from, to);
-
-  const sum = rows.reduce((acc,r)=>({
-    cash: acc.cash + r.cash,
-    card: acc.card + r.card,
-    expenses: acc.expenses + r.expenses,
-    total: acc.total + r.total,
-    ticket: acc.ticket + r.ticket
-  }), {cash:0, card:0, expenses:0, total:0, ticket:0});
-
-  const diff = round2(sum.ticket - sum.total);
-
-  kCash.textContent = formatMoney(sum.cash);
-  kCard.textContent = formatMoney(sum.card);
-  kExp.textContent  = formatMoney(sum.expenses);
-  kTotal.textContent = formatMoney(sum.total);
-  kTicket.textContent = formatMoney(sum.ticket);
-  kDiff.textContent = formatDiff(diff);
-
-  // table
-  repTableBody.innerHTML = "";
-  for(const r of rows){
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(r.periodLabel)}</td>
-      <td>${formatMoney(r.cash)}</td>
-      <td>${formatMoney(r.card)}</td>
-      <td><b>${formatMoney(r.total)}</b></td>
-      <td>${formatMoney(r.expenses)}</td>
-      <td>${formatMoney(r.ticket)}</td>
-      <td>${formatDiff(r.diff)}</td>
-    `;
-    repTableBody.appendChild(tr);
-  }
-
-  repHint.textContent = rows.length
-    ? `Mostrando ${rows.length} periodos · Rango: ${from || "—"} → ${to || "—"}`
-    : "No hay datos en ese rango.";
-
-  renderCharts(rows);
-  renderRankingAndPercents(from, to);
-}
-
-function buildReport(type, store, from=null, to=null){
-  const all = Object.values(state.entries || {})
-    .filter(e => e && e.id && !e.deletedAt);
-
-  if(!all.length) return [];
-
-  const filtered = all.filter(e=>{
-    if(store !== "global" && e.store !== store) return false;
-    if(from && e.date < from) return false;
-    if(to && e.date > to) return false;
-    return true;
-  });
-
-  const map = new Map();
-
-  for(const e of filtered){
-    const cash = Number(e.cash||0);
-    const card = Number(e.card||0);
-    const exp = Number(e.expenses||0);
-    const ticket = Number(e.ticket||0);
-    const total = cash + card;
-
-    let period, periodLabel, sortKey;
-    if(type === "daily"){
-      period = e.date;
-      periodLabel = `${e.date} (${weekdayES(e.date)})`;
-      sortKey = new Date(e.date + "T00:00:00").getTime();
-    }else if(type === "weekly"){
-      const w = weekMeta(e.date);
-      period = `${w.year}-W${String(w.week).padStart(2,"0")}`;
-      periodLabel = `Semana ${period} (${w.mondayISO}→${addDaysISO(w.mondayISO,6)})`;
-      sortKey = new Date(w.mondayISO + "T00:00:00").getTime();
-    }else{
-      const m = e.date.slice(0,7);
-      period = m;
-      periodLabel = `Mes ${m}`;
-      sortKey = Number(m.replace("-","")) * 100;
-    }
-
-    const prev = map.get(period) || { period, periodLabel, cash:0, card:0, expenses:0, total:0, ticket:0, sortKey };
-    prev.cash += cash;
-    prev.card += card;
-    prev.expenses += exp;
-    prev.total += total;
-    prev.ticket += ticket;
-    prev.sortKey = Math.min(prev.sortKey, sortKey);
-
-    map.set(period, prev);
-  }
-
-  const rows = Array.from(map.values()).sort((a,b)=>a.sortKey - b.sortKey);
-  return rows.map(r=>{
-    const diff = round2(r.ticket - r.total);
-    return {
-      period: r.period,
-      periodLabel: r.periodLabel,
-      cash: round2(r.cash),
-      card: round2(r.card),
-      expenses: round2(r.expenses),
-      total: round2(r.total),
-      ticket: round2(r.ticket),
-      diff
-    };
-  });
-}
-
-/* Charts */
-function renderCharts(rows){
-  const labels = rows.map(r=>r.periodLabel);
-  const totals = rows.map(r=>r.total);
-  const cash = rows.map(r=>r.cash);
-  const card = rows.map(r=>r.card);
-  const ticket = rows.map(r=>r.ticket);
-
-  const ma = movingAverage(totals, 3);
-
-  if(chTotal) chTotal.destroy();
-  chTotal = new Chart($("chTotal"), {
-    type:"line",
-    data:{
-      labels,
-      datasets:[
-        { label:"Total", data: totals, tension:0.25, borderWidth:2, pointRadius:2 },
-        { label:"Media (3)", data: ma, tension:0.25, borderWidth:2, pointRadius:0 }
-      ]
-    },
-    options: baseChartOptions()
-  });
-
-  if(chMix) chMix.destroy();
-  chMix = new Chart($("chMix"), {
-    type:"bar",
-    data:{ labels, datasets:[ { label:"Efectivo", data: cash }, { label:"Tarjeta", data: card } ] },
-    options: baseChartOptions()
-  });
-
-  if(chTicket) chTicket.destroy();
-  chTicket = new Chart($("chTicket"), {
-    type:"line",
-    data:{
-      labels,
-      datasets:[
-        { label:"Total", data: totals, tension:0.25, borderWidth:2, pointRadius:2 },
-        { label:"Ticket", data: ticket, tension:0.25, borderWidth:2, pointRadius:2 }
-      ]
-    },
-    options: baseChartOptions()
-  });
-}
-
-function baseChartOptions(){
-  const isDark = document.documentElement.getAttribute("data-theme")==="dark";
-  const labelColor = isDark ? "#eaf0ff" : "#101828";
-  const gridColor  = isDark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)";
-  return {
-    responsive:true,
-    plugins:{ legend:{ labels:{ color: labelColor } } },
-    scales:{
-      x:{ ticks:{ color: labelColor }, grid:{ color: gridColor } },
-      y:{ ticks:{ color: labelColor }, grid:{ color: gridColor } }
-    }
-  };
-}
-
-function movingAverage(arr, w){
-  const out = [];
-  for(let i=0;i<arr.length;i++){
-    const start = Math.max(0, i-(w-1));
-    const slice = arr.slice(start, i+1);
-    const avg = slice.reduce((a,b)=>a+b,0)/slice.length;
-    out.push(round2(avg));
-  }
-  return out;
-}
-
-/* Ranking + Percents (global) */
-function renderRankingAndPercents(from, to){
-  const sums = STORES.map(s=>{
-    const rows = buildReport("daily", s.id, from, to);
-    const total = rows.reduce((a,r)=>a+r.total,0);
-    return { id:s.id, name:s.name, total: round2(total) };
-  }).sort((a,b)=>b.total-a.total);
-
-  const global = sums.reduce((a,x)=>a+x.total,0);
-  const pct = (v)=> global>0 ? (v/global*100) : 0;
-
-  rankList.innerHTML = "";
-  sums.forEach((it, idx)=>{
-    const div = document.createElement("div");
-    div.className = "rankitem";
-    div.innerHTML = `
-      <div class="left"><div class="dot"></div><div><b>${escapeHtml(it.name)}</b></div></div>
-      <div>${formatMoney(it.total)} · ${pct(it.total).toFixed(1)}%</div>
-    `;
-    rankList.appendChild(div);
-  });
-
-  rankHint.textContent = global>0 ? `Total global del rango: ${formatMoney(global)}` : "Sin datos.";
-
-  pctSP.textContent = pct(sums.find(x=>x.id==="san_pablo")?.total||0).toFixed(1) + "%";
-  pctSL.textContent = pct(sums.find(x=>x.id==="san_lesmes")?.total||0).toFixed(1) + "%";
-  pctSA.textContent = pct(sums.find(x=>x.id==="santiago")?.total||0).toFixed(1) + "%";
-
-  pctSP2.textContent = `Importe: ${formatMoney(sums.find(x=>x.id==="san_pablo")?.total||0)}`;
-  pctSL2.textContent = `Importe: ${formatMoney(sums.find(x=>x.id==="san_lesmes")?.total||0)}`;
-  pctSA2.textContent = `Importe: ${formatMoney(sums.find(x=>x.id==="santiago")?.total||0)}`;
-}
-
-/* =========================
-   WhatsApp / CSV / Backup
-========================= */
-function buildDayText(dateISO){
-  const t = computeDay(dateISO);
-  const sp = t.byStore.san_pablo;
-  const sl = t.byStore.san_lesmes;
-  const sa = t.byStore.santiago;
-  const g  = t.global;
-
-  return [
-    `📊 *RESUMEN DEL DÍA*`,
-    `📅 ${dateISO} (${weekdayES(dateISO)})`,
-    ``,
-    `🏪 *San Pablo*`,
-    `🧾 Total ${formatMoney(sp.total)} · Ticket ${formatMoney(sp.ticket)} · Dif ${formatDiff(sp.diff)} · Gastos ${formatMoney(sp.expenses)}`,
-    `💶 Efe ${formatMoney(sp.cash)} · 💳 Tar ${formatMoney(sp.card)}`,
-    ``,
-    `🏪 *San Lesmes*`,
-    `🧾 Total ${formatMoney(sl.total)} · Ticket ${formatMoney(sl.ticket)} · Dif ${formatDiff(sl.diff)} · Gastos ${formatMoney(sl.expenses)}`,
-    `💶 Efe ${formatMoney(sl.cash)} · 💳 Tar ${formatMoney(sl.card)}`,
-    ``,
-    `🏪 *Santiago*`,
-    `🧾 Total ${formatMoney(sa.total)} · Ticket ${formatMoney(sa.ticket)} · Dif ${formatDiff(sa.diff)} · Gastos ${formatMoney(sa.expenses)}`,
-    `💶 Efe ${formatMoney(sa.cash)} · 💳 Tar ${formatMoney(sa.card)}`,
-    ``,
-    `🌍 *GLOBAL*`,
-    `🧾 Total ${formatMoney(g.total)} · Ticket ${formatMoney(g.ticket)} · Dif ${formatDiff(g.diff)} · Gastos ${formatMoney(g.expenses)}`,
-    `💶 Efe ${formatMoney(g.cash)} · 💳 Tar ${formatMoney(g.card)}`
-  ].join("\n");
-}
-
-function buildReportText(){
-  const type = reportType.value;
-  const store = reportStore.value;
-  const from = rangeFrom.value || "—";
-  const to = rangeTo.value || "—";
-  const rows = buildReport(type, store, rangeFrom.value || null, rangeTo.value || null);
-
-  if(!rows.length) return `No hay datos para este reporte (${type}).`;
-
-  const titleType = type==="daily" ? "DIARIO" : type==="weekly" ? "SEMANAL" : "MENSUAL";
-  const titleStore = store==="global" ? "GLOBAL" : storeName(store);
-
-  const sum = rows.reduce((acc,r)=>({
-    cash: acc.cash+r.cash,
-    card: acc.card+r.card,
-    expenses: acc.expenses+r.expenses,
-    total: acc.total+r.total,
-    ticket: acc.ticket+r.ticket
-  }), {cash:0, card:0, expenses:0, total:0, ticket:0});
-
-  const diff = round2(sum.ticket - sum.total);
-
-  const last = rows.slice(-10);
-
-  const lines = [];
-  lines.push(`📈 *REPORTE ${titleType}*`);
-  lines.push(`🏷️ ${titleStore}`);
-  lines.push(`📌 Rango: ${from} → ${to}`);
-  lines.push(``);
-  lines.push(`💶 Efectivo: ${formatMoney(sum.cash)}`);
-  lines.push(`💳 Tarjeta: ${formatMoney(sum.card)}`);
-  lines.push(`🧾 TOTAL: ${formatMoney(sum.total)}`);
-  lines.push(`🧾 Ticket: ${formatMoney(sum.ticket)} · Dif: ${formatDiff(diff)}`);
-  lines.push(`💸 Gastos: ${formatMoney(sum.expenses)}`);
-  lines.push(``);
-  lines.push(`🗂️ *Últimos ${last.length} periodos*:`);
-
-  for(const r of last){
-    lines.push(`• ${r.periodLabel} — Total ${formatMoney(r.total)} · Ticket ${formatMoney(r.ticket)} · Dif ${formatDiff(r.diff)}`);
-  }
-
-  return lines.join("\n");
-}
-
-function openWhatsApp(text){
-  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(text);
-  window.open(url, "_blank");
-}
-
-function exportCSV(){
-  const type = reportType.value;
-  const store = reportStore.value;
-  const from = rangeFrom.value || null;
-  const to = rangeTo.value || null;
-
-  const rows = buildReport(type, store, from, to);
-  if(!rows.length){
-    alert("No hay datos para exportar.");
-    return;
-  }
-
-  const header = ["Periodo","Efectivo","Tarjeta","Total","Gastos","Ticket","DifTicket"];
-  const lines = [header.join(";")];
-
-  for(const r of rows){
-    lines.push([
-      `"${String(r.periodLabel).replaceAll('"','""')}"`,
-      r.cash.toFixed(2).replace(".",","),
-      r.card.toFixed(2).replace(".",","),
-      r.total.toFixed(2).replace(".",","),
-      r.expenses.toFixed(2).replace(".",","),
-      r.ticket.toFixed(2).replace(".",","),
-      r.diff.toFixed(2).replace(".",",")
-    ].join(";"));
-  }
-
-  const csv = lines.join("\n");
-  const blob = new Blob([csv], { type:"text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `reporte_${type}_${store}_${(from||"")}_${(to||"")}.csv`.replaceAll("__","_");
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function exportBackup(){
-  const payload = {
-    meta: { app:"ARSLAN_SALES_V1", exportedAt: new Date().toISOString() },
-    state,
-    settings: { ...settings }
-  };
-
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `backup_arslan_sales_${toISODate(new Date())}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function importBackup(){
-  const file = importFile.files?.[0];
-  if(!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async ()=>{
-    try{
-      const payload = JSON.parse(reader.result);
-      if(!payload?.state?.entries) throw new Error("Formato no válido.");
-
-      // merge seguro: no borra datos existentes, añade/actualiza por updatedAt
-      const incoming = payload.state.entries || {};
-      let changed = false;
-
-      for(const [id, inc] of Object.entries(incoming)){
-        if(!inc || !inc.id) continue;
-        const local = state.entries[id];
-        const iU = Number(inc.updatedAt||0);
-        const lU = Number(local?.updatedAt||0);
-        if(!local || iU > lU){
-          state.entries[id] = inc;
-          changed = true;
-        }
-      }
-
-      if(changed) saveState();
-
-      // settings: mantenemos theme actual
-      const keepTheme = settings.theme;
-      if(payload.settings){
-        settings = { ...settings, ...payload.settings, theme: keepTheme };
-        saveSettings();
-      }
-
-      fillEntry();
-      updateComputed();
-      renderDaySummary();
-      refreshReports();
-
-      alert("Importado correctamente ✅");
-
-      // subir a nube solo lo que sea más nuevo
-      if(cloud.ready) await pushLocalNewerOnly();
-
-    }catch(err){
-      alert("Error importando: " + (err?.message || "desconocido"));
-    }finally{
-      importFile.value = "";
-    }
-  };
-  reader.readAsText(file);
-}
-
-/* =========================
-   UI Utils
-========================= */
-function setCloudBadge(type, text){
-  if(!cloudStatus) return;
-  cloudStatus.classList.remove("ok","warn","bad");
-  if(type) cloudStatus.classList.add(type);
-  cloudStatus.textContent = text;
-}
-function showMsg(el, text, type){
-  if(!el) return;
-  if(!text){
-    el.className = "msg";
-    el.textContent = "";
-    el.classList.remove("show","ok","err");
-    return;
-  }
-  el.textContent = text;
-  el.className = "msg show " + (type==="err" ? "err" : "ok");
-}
-function hideMsg(el){
-  if(!el) return;
-  el.classList.remove("show","ok","err");
-  el.textContent = "";
-}
 function toast(el, text, ok=true){
-  if(!el) return;
+  el.className = "msg " + (ok ? "ok" : "err");
   el.textContent = text;
-  el.className = "msg show " + (ok ? "ok" : "err");
 }
+
 async function copyToClipboard(text){
   try{
     await navigator.clipboard.writeText(text);
@@ -1260,69 +271,633 @@ async function copyToClipboard(text){
   }
 }
 
-/* =========================
-   Formatting / Math
-========================= */
-function parseMoney(str){
-  if(!str) return 0;
-  const clean = String(str).replace(/\./g,"").replace(",",".").replace(/[^\d.-]/g,"");
-  const n = Number(clean);
-  return Number.isFinite(n) ? n : 0;
+/* ============== Theme ============== */
+function applyTheme(theme){
+  if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
+  else document.documentElement.removeAttribute("data-theme");
 }
-function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
-function formatMoney(n){
-  const v = Number(n||0);
-  return v.toLocaleString("es-ES", { style:"currency", currency:"EUR" });
+function toggleTheme(){
+  const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  const next = (current === "dark") ? "light" : "dark";
+  settings.theme = next;
+  applyTheme(next);
+  saveSettings();
+  refreshReports();
 }
-function fmtInput(n){
-  const v = Number(n||0);
-  return v ? String(v).replace(".",",") : "";
-}
-function normalizeMoneyInput(el){
-  el.value = String(el.value||"").replace(/[^\d,.-]/g,"");
-}
-function formatDiff(d){
-  const v = Number(d||0);
-  const sign = v > 0 ? "+" : "";
-  return `${sign}${v.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €`;
-}
-function setStatusClass(el, value){
-  if(!el) return;
-  el.classList.remove("ok","warn","bad");
-  const v = Math.abs(Number(value||0));
-  if(v <= 0.01) el.classList.add("ok");
-  else if(v <= 10) el.classList.add("warn");
-  else el.classList.add("bad");
-}
-function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-function storeName(id){ return STORES.find(s=>s.id===id)?.name || id; }
 
-/* Dates */
-function toISODate(d){
+/* ============== Tabs ============== */
+function activateTab(id){
+  tabButtons.forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  tabSections.forEach(s => s.classList.toggle("active", s.id === id));
+  try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
+}
+
+/* ============== Local storage ============== */
+function stateKey(){ return LOCAL_KEY_PREFIX + (UID || "NOUID"); }
+function settingsKey(){ return LOCAL_SETTINGS_PREFIX + (UID || "NOUID"); }
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(stateKey());
+    if (!raw) return { entries:{} };
+    const parsed = JSON.parse(raw);
+    if (!parsed.entries) parsed.entries = {};
+    return parsed;
+  }catch{
+    return { entries:{} };
+  }
+}
+function saveState(){
+  localStorage.setItem(stateKey(), JSON.stringify(state));
+}
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem(settingsKey());
+    if (!raw) return { theme:"light", goals:null };
+    const parsed = JSON.parse(raw);
+    if (!parsed.theme) parsed.theme = "light";
+    return parsed;
+  }catch{
+    return { theme:"light", goals:null };
+  }
+}
+function saveSettings(){
+  localStorage.setItem(settingsKey(), JSON.stringify(settings));
+}
+
+/* ============== Cloud badge ============== */
+function setCloudBadge(type, text){
+  [cloudStatus, cloudStatusTop].forEach(el=>{
+    if(!el) return;
+    el.classList.remove("ok","warn","bad");
+    if(type) el.classList.add(type);
+    el.textContent = text;
+  });
+}
+
+/* ============== Firebase Auth ============== */
+function getFirebase(){
+  if (!window.__firebase || !window.__firebase.auth || !window.__firebase.db) return null;
+  return window.__firebase;
+}
+
+async function signInEmailPassword(email, pass){
+  const fb = getFirebase();
+  if(!fb) throw new Error("Firebase no configurado.");
+  return fb.auth.signInWithEmailAndPassword(email, pass);
+}
+
+async function resetPassword(email){
+  const fb = getFirebase();
+  if(!fb) throw new Error("Firebase no configurado.");
+  return fb.auth.sendPasswordResetEmail(email);
+}
+
+async function signOut(){
+  const fb = getFirebase();
+  if(!fb) return;
+  await fb.auth.signOut();
+}
+
+/* ============== Cloud Sync (PULL + MERGE safe) ============== */
+function hashObj(obj){
+  try{
+    return JSON.stringify(obj);
+  }catch{
+    return String(Date.now());
+  }
+}
+
+function mergeEntries(localEntries, remoteEntries){
+  const out = { ...(localEntries || {}) };
+  const r = remoteEntries || {};
+
+  let changed = false;
+  for (const [k, v] of Object.entries(r)){
+    const lv = out[k];
+    const rt = Date.parse(v?.updatedAt || 0) || 0;
+    const lt = Date.parse(lv?.updatedAt || 0) || 0;
+    if (!lv || rt > lt){
+      out[k] = v;
+      changed = true;
+    }
+  }
+  return { merged: out, changed };
+}
+
+async function cloudInitAfterAuth(user){
+  const fb = getFirebase();
+  if(!fb) return;
+
+  UID = user.uid;
+
+  // cargar local por uid
+  state = loadState();
+  settings = loadSettings();
+  applyTheme(settings.theme || "light");
+
+  // defaults
+  ensureDefaults();
+
+  cloud.stateRef = fb.db.ref("arslan_facturacion/" + UID + "/state");
+  cloud.settingsRef = fb.db.ref("arslan_facturacion/" + UID + "/settings");
+
+  setCloudBadge("warn","☁️ Nube: sincronizando…");
+
+  // 1) PULL inicial
+  let remoteState = null;
+  let remoteSettings = null;
+
+  try{
+    const [s1, s2] = await Promise.all([ cloud.stateRef.get(), cloud.settingsRef.get() ]);
+    remoteState = s1.exists() ? s1.val() : null;
+    remoteSettings = s2.exists() ? s2.val() : null;
+  }catch(e){
+    setCloudBadge("warn","☁️ Nube: offline (local)");
+    cloud.ready = false;
+    showApp();
+    renderAll();
+    return;
+  }
+
+  // settings: solo goals + metadatos (theme es local)
+  if (remoteSettings?.goals){
+    settings.goals = remoteSettings.goals;
+    saveSettings();
+  }
+
+  const localCount = Object.keys(state.entries || {}).length;
+  const remoteCount = Object.keys(remoteState?.entries || {}).length;
+
+  // ✅ regla anti-borrado:
+  // - Si local vacío y nube tiene datos => bajar nube y NO subir vacío
+  // - Si nube vacía y local tiene datos => subir local
+  // - Si ambos tienen => merge y subir merge
+  if (remoteCount > 0 && localCount === 0){
+    state.entries = remoteState.entries || {};
+    saveState();
+  } else if (remoteCount === 0 && localCount > 0){
+    // subimos local a nube
+    await cloudPushAll();
+  } else if (remoteCount > 0 && localCount > 0){
+    const m = mergeEntries(state.entries, remoteState.entries);
+    state.entries = m.merged;
+    saveState();
+    await cloudPushAll(); // asegura que el merge queda en nube
+  } else {
+    // ambos vacíos => nada
+  }
+
+  cloud.ready = true;
+  setCloudBadge("ok","☁️ Nube: online");
+
+  // 2) LISTENER realtime: merge seguro (nunca pisa local si local es más nuevo)
+  cloud.stateRef.on("value", (snap)=>{
+    const remote = snap.val();
+    if(!remote?.entries) return;
+
+    const remoteHash = hashObj(remote.entries);
+    if (cloud.lastRemoteHash === remoteHash) return; // evita loops
+    cloud.lastRemoteHash = remoteHash;
+
+    const m = mergeEntries(state.entries, remote.entries);
+    if (m.changed){
+      state.entries = m.merged;
+      saveState();
+      renderAll();
+    }
+  }, (err)=>{
+    console.error(err);
+    setCloudBadge("warn","☁️ Nube: offline (local)");
+  });
+
+  cloud.settingsRef.on("value", (snap)=>{
+    const remote = snap.val();
+    if(!remote?.goals) return;
+    settings.goals = remote.goals;
+    saveSettings();
+    renderGoals();
+    renderTodaySummary();
+    refreshReports();
+  });
+
+  showApp();
+  renderAll();
+}
+
+async function cloudPushAll(){
+  const fb = getFirebase();
+  if(!fb || !cloud.stateRef || !cloud.settingsRef || !UID) return;
+  if (cloud.pushing) return;
+
+  try{
+    cloud.pushing = true;
+    setCloudBadge("warn","☁️ Nube: subiendo…");
+
+    const payloadState = {
+      entries: state.entries || {},
+      updatedAt: new Date().toISOString(),
+      serverAt: fb.serverTimestamp
+    };
+    const payloadSettings = {
+      goals: settings.goals || null,
+      updatedAt: new Date().toISOString(),
+      serverAt: fb.serverTimestamp
+    };
+
+    await Promise.all([
+      cloud.stateRef.set(payloadState),
+      cloud.settingsRef.set(payloadSettings)
+    ]);
+
+    setCloudBadge("ok","☁️ Nube: online");
+  }catch(e){
+    console.error("push error", e);
+    setCloudBadge("warn","☁️ Nube: offline (local)");
+  }finally{
+    cloud.pushing = false;
+  }
+}
+
+let pushTimer = null;
+function cloudPushDebounced(){
+  if (!cloud.ready) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(()=> cloudPushAll(), 600);
+}
+
+/* ============== Defaults + UI ============== */
+function ensureDefaults(){
+  const today = toISODate(new Date());
+
+  if (!settings.goals){
+    settings.goals = {
+      san_pablo:{daily:0, monthly:0},
+      san_lesmes:{daily:0, monthly:0},
+      santiago:{daily:0, monthly:0},
+      global:{daily:0, monthly:0},
+    };
+    saveSettings();
+  }
+
+  if (!dateInput.value) dateInput.value = today;
+  if (!rangeTo.value) rangeTo.value = today;
+  if (!rangeFrom.value) rangeFrom.value = today.slice(0,7) + "-01";
+
+  // goals inputs
+  goalDailySP.value = fmtInput(settings.goals.san_pablo.daily);
+  goalMonthlySP.value = fmtInput(settings.goals.san_pablo.monthly);
+  goalDailySL.value = fmtInput(settings.goals.san_lesmes.daily);
+  goalMonthlySL.value = fmtInput(settings.goals.san_lesmes.monthly);
+  goalDailySA.value = fmtInput(settings.goals.santiago.daily);
+  goalMonthlySA.value = fmtInput(settings.goals.santiago.monthly);
+  goalDailyG.value = fmtInput(settings.goals.global.daily);
+  goalMonthlyG.value = fmtInput(settings.goals.global.monthly);
+
+  highlightStoreQuick(storeInput.value || "san_pablo");
+}
+
+function highlightStoreQuick(storeId){
+  document.querySelectorAll(".storebtn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.store === storeId);
+  });
+}
+
+function showApp(){
+  authView.classList.add("hidden");
+  appView.classList.remove("hidden");
+}
+
+function showAuth(){
+  appView.classList.add("hidden");
+  authView.classList.remove("hidden");
+}
+
+/* ============== Entry ops ============== */
+function setEntry(dateISO, storeId, payload){
+  state.entries[keyOf(dateISO, storeId)] = {
+    date: dateISO,
+    store: storeId,
+    cash: payload.cash || 0,
+    card: payload.card || 0,
+    ticket: payload.ticket || 0,
+    expenses: payload.expenses || 0,
+    cashCounted: payload.cashCounted || 0,
+    notes: payload.notes || "",
+    updatedAt: new Date().toISOString()
+  };
+  saveState();
+}
+function deleteEntry(dateISO, storeId){
+  delete state.entries[keyOf(dateISO, storeId)];
+  saveState();
+}
+
+function fillEntryIfExists(){
+  const dateISO = dateInput.value;
+  const storeId = storeInput.value;
+  const e = getEntry(dateISO, storeId);
+
+  if (e){
+    cashInput.value = fmtInput(e.cash);
+    cardInput.value = fmtInput(e.card);
+    ticketInput.value = fmtInput(e.ticket);
+    expensesInput.value = fmtInput(e.expenses);
+    cashCountedInput.value = fmtInput(e.cashCounted);
+    notesInput.value = e.notes || "";
+  } else {
+    cashInput.value = "";
+    cardInput.value = "";
+    ticketInput.value = "";
+    expensesInput.value = "";
+    cashCountedInput.value = "";
+    notesInput.value = "";
+  }
+  updateBoxes();
+  saveMsg.textContent = "";
+  saveMsg.className = "msg";
+}
+
+function updateBoxes(){
+  const cash = round2(parseMoney(cashInput.value));
+  const card = round2(parseMoney(cardInput.value));
+  const ticket = round2(parseMoney(ticketInput.value));
+  const expenses = round2(parseMoney(expensesInput.value));
+  const counted = round2(parseMoney(cashCountedInput.value));
+
+  const total = round2(cash + card);
+  totalBox.textContent = formatMoney(total);
+
+  const dt = round2(total - ticket); // ✅ correcto
+  diffBox.textContent = (!cashInput.value && !cardInput.value && !ticketInput.value)
+    ? "—"
+    : `${dt.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} € · ${diffHuman(dt)}`;
+
+  setBoxSemaforo(diffBox, diffWarn, dt, "Ticket:");
+
+  // Caja: esperado = efectivo - gastos
+  const expected = round2(cash - expenses);
+  const cd = round2(counted - expected);
+
+  cashDiffBox.textContent = (!cashCountedInput.value && !cashInput.value && !expensesInput.value)
+    ? "—"
+    : `${cd.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} € · ${diffHuman(cd)}`;
+
+  setBoxSemaforo(cashDiffBox, cashWarn, cd, "Caja:");
+
+  // Si no hay contado, deja warning vacío
+  if (!cashCountedInput.value){
+    cashWarn.textContent = "";
+    cashWarn.classList.remove("ok","warn","bad");
+    cashDiffBox.classList.remove("ok","warn","bad");
+  }
+}
+
+function clearEntry(){
+  cashInput.value = "";
+  cardInput.value = "";
+  ticketInput.value = "";
+  expensesInput.value = "";
+  cashCountedInput.value = "";
+  notesInput.value = "";
+  updateBoxes();
+  toast(saveMsg, "", true);
+}
+
+function computeDayTotals(dateISO){
+  const byStore = {};
+  let gCash=0, gCard=0, gTicket=0;
+
+  for (const s of STORES){
+    const e = getEntry(dateISO, s.id) || null;
+    const cash = e?.cash || 0;
+    const card = e?.card || 0;
+    const ticket = e?.ticket || 0;
+
+    const total = round2(cash + card);
+    const diffT = round2(total - ticket); // ✅
+
+    byStore[s.id] = { cash, card, ticket, total, diffT };
+    gCash += cash; gCard += card; gTicket += ticket;
+  }
+
+  const gTotal = round2(gCash + gCard);
+  const gDiffT = round2(gTotal - gTicket);
+
+  return {
+    byStore,
+    global: { cash:gCash, card:gCard, ticket:gTicket, total:gTotal, diffT:gDiffT }
+  };
+}
+
+/* ============== Summary + Goals ============== */
+function tagEl(title, value){
+  const d = document.createElement("div");
+  d.className = "tag";
+  d.textContent = `${title} · ${value}`;
+  return d;
+}
+
+function renderSemaforoRow(el, value, goal){
+  el.innerHTML = "";
+  const g = Number(goal || 0);
+  if (!g){
+    el.appendChild(tagEl("Define objetivo", "—"));
+    return;
+  }
+  const pct = (value / g) * 100;
+  if (pct >= 100) el.appendChild(tagEl("✅ OK", `${pct.toFixed(0)}%`));
+  else if (pct >= 85) el.appendChild(tagEl("⚠️ Medio", `${pct.toFixed(0)}%`));
+  else el.appendChild(tagEl("❌ Bajo", `${pct.toFixed(0)}%`));
+}
+
+function renderTodaySummary(){
+  const dateISO = dateInput.value;
+  const totals = computeDayTotals(dateISO);
+
+  const sp = totals.byStore.san_pablo;
+  const sl = totals.byStore.san_lesmes;
+  const sa = totals.byStore.santiago;
+  const g  = totals.global;
+
+  sumSP.textContent = formatMoney(sp.total);
+  sumSP2.textContent = `Efe: ${formatMoney(sp.cash)} · Tar: ${formatMoney(sp.card)} · Ticket: ${formatMoney(sp.ticket)} · Dif: ${sp.diffT.toFixed(2)}€`;
+
+  sumSL.textContent = formatMoney(sl.total);
+  sumSL2.textContent = `Efe: ${formatMoney(sl.cash)} · Tar: ${formatMoney(sl.card)} · Ticket: ${formatMoney(sl.ticket)} · Dif: ${sl.diffT.toFixed(2)}€`;
+
+  sumSA.textContent = formatMoney(sa.total);
+  sumSA2.textContent = `Efe: ${formatMoney(sa.cash)} · Tar: ${formatMoney(sa.card)} · Ticket: ${formatMoney(sa.ticket)} · Dif: ${sa.diffT.toFixed(2)}€`;
+
+  sumGlobal.textContent = formatMoney(g.total);
+  sumGlobal2.textContent = `Efectivo: ${formatMoney(g.cash)} · Tarjeta: ${formatMoney(g.card)} · Ticket: ${formatMoney(g.ticket)} · Dif: ${g.diffT.toFixed(2)}€`;
+
+  renderSemaforoRow(semSP, sp.total, settings.goals.san_pablo.daily);
+  renderSemaforoRow(semSL, sl.total, settings.goals.san_lesmes.daily);
+  renderSemaforoRow(semSA, sa.total, settings.goals.santiago.daily);
+  renderSemaforoRow(semGlobal, g.total, settings.goals.global.daily);
+}
+
+function onSaveGoals(){
+  settings.goals = {
+    san_pablo: { daily: round2(parseMoney(goalDailySP.value)), monthly: round2(parseMoney(goalMonthlySP.value)) },
+    san_lesmes:{ daily: round2(parseMoney(goalDailySL.value)), monthly: round2(parseMoney(goalMonthlySL.value)) },
+    santiago:  { daily: round2(parseMoney(goalDailySA.value)), monthly: round2(parseMoney(goalMonthlySA.value)) },
+    global:    { daily: round2(parseMoney(goalDailyG.value)), monthly: round2(parseMoney(goalMonthlyG.value)) },
+  };
+  saveSettings();
+  renderGoals();
+  renderTodaySummary();
+  toast(saveMsg, "Objetivos guardados ✅", true);
+  cloudPushDebounced();
+}
+
+function renderGoals(){
+  const dateISO = dateInput.value;
+  const todayTotals = computeDayTotals(dateISO).global.total;
+
+  const monthKey = dateISO.slice(0,7);
+  const monthRows = buildReport("daily", "global", monthKey + "-01", monthKey + "-31");
+  const monthTotal = monthRows.reduce((a,r)=>a + r.total, 0);
+
+  const gd = Number(settings.goals?.global?.daily || 0);
+  if (gd > 0){
+    const pct = Math.max(0, Math.min(100, (todayTotals / gd) * 100));
+    goalTodayPct.textContent = pct.toFixed(1) + "%";
+    goalTodayTxt.textContent = `${formatMoney(todayTotals)} / ${formatMoney(gd)}`;
+  } else {
+    goalTodayPct.textContent = "—";
+    goalTodayTxt.textContent = "Define objetivo diario global";
+  }
+
+  const gm = Number(settings.goals?.global?.monthly || 0);
+  if (gm > 0){
+    const pct = Math.max(0, Math.min(100, (monthTotal / gm) * 100));
+    goalMonthPct.textContent = pct.toFixed(1) + "%";
+    goalMonthTxt.textContent = `${formatMoney(monthTotal)} / ${formatMoney(gm)}`;
+  } else {
+    goalMonthPct.textContent = "—";
+    goalMonthTxt.textContent = "Define objetivo mensual global";
+  }
+}
+
+/* ============== Day history + WhatsApp ============== */
+function renderDayHistory(){
+  const dateISO = dateInput.value;
+  dayList.innerHTML = "";
+
+  const items = STORES.map(s => {
+    const e = getEntry(dateISO, s.id);
+    const cash = e?.cash || 0;
+    const card = e?.card || 0;
+    const ticket = e?.ticket || 0;
+    const total = round2(cash + card);
+    const diffT = round2(total - ticket);
+    return { store:s.id, name:s.name, total, ticket, diffT, exists: !!e };
+  });
+
+  const existsCount = items.filter(x => x.exists).length;
+  dayHint.textContent = `${dateISO} (${weekdayES(dateISO)}) · registros: ${existsCount}/3`;
+
+  for (const it of items){
+    const div = document.createElement("div");
+    div.className = "dayitem";
+    div.innerHTML = `
+      <div>
+        <div class="k">${escapeHtml(it.name)}</div>
+        <div class="muted small">
+          Total ${formatMoney(it.total)} · Ticket ${formatMoney(it.ticket)} · Dif ${it.diffT.toFixed(2)}€
+          (${diffHuman(it.diffT)})
+        </div>
+      </div>
+      <div class="v">${formatMoney(it.total)}</div>
+    `;
+    div.addEventListener("click", () => {
+      storeInput.value = it.store;
+      highlightStoreQuick(it.store);
+      fillEntryIfExists();
+      cashInput.focus();
+    });
+    dayList.appendChild(div);
+  }
+}
+
+function buildWhatsAppDayText(dateISO){
+  const totals = computeDayTotals(dateISO);
+  const dayName = weekdayES(dateISO);
+
+  const sp = totals.byStore.san_pablo;
+  const sl = totals.byStore.san_lesmes;
+  const sa = totals.byStore.santiago;
+  const g  = totals.global;
+
+  return [
+    `📊 *RESUMEN DEL DÍA*`,
+    `📅 ${dateISO} (${dayName})`,
+    ``,
+    `🏪 *San Pablo*`,
+    `Total: ${formatMoney(sp.total)} · Ticket: ${formatMoney(sp.ticket)} · Dif: ${sp.diffT.toFixed(2)}€ (${diffHuman(sp.diffT)})`,
+    `Efe: ${formatMoney(sp.cash)} · Tar: ${formatMoney(sp.card)}`,
+    ``,
+    `🏪 *San Lesmes*`,
+    `Total: ${formatMoney(sl.total)} · Ticket: ${formatMoney(sl.ticket)} · Dif: ${sl.diffT.toFixed(2)}€ (${diffHuman(sl.diffT)})`,
+    `Efe: ${formatMoney(sl.cash)} · Tar: ${formatMoney(sl.card)}`,
+    ``,
+    `🏪 *Santiago*`,
+    `Total: ${formatMoney(sa.total)} · Ticket: ${formatMoney(sa.ticket)} · Dif: ${sa.diffT.toFixed(2)}€ (${diffHuman(sa.diffT)})`,
+    `Efe: ${formatMoney(sa.cash)} · Tar: ${formatMoney(sa.card)}`,
+    ``,
+    `🌍 *GLOBAL*`,
+    `Total: ${formatMoney(g.total)} · Ticket: ${formatMoney(g.ticket)} · Dif: ${g.diffT.toFixed(2)}€ (${diffHuman(g.diffT)})`,
+    `Efe: ${formatMoney(g.cash)} · Tar: ${formatMoney(g.card)}`
+  ].join("\n");
+}
+
+function openWhatsApp(text){
+  const url = "https://wa.me/" + WA_PHONE + "?text=" + encodeURIComponent(text);
+  window.open(url, "_blank");
+}
+
+/* ============== Reports ============== */
+function periodSortKey(type, dateISO){
+  const d = new Date(dateISO + "T00:00:00");
+  if (type === "daily") return d.getTime();
+  if (type === "weekly"){
+    const wk = isoWeek(d);
+    return new Date(wk.mondayISO + "T00:00:00").getTime();
+  }
+  return (d.getFullYear() * 100 + (d.getMonth()+1)) * 100;
+}
+function estimateDaysCovered(rows, type){
+  if (!rows.length) return 0;
+  if (type === "daily") return rows.length;
+  if (type === "weekly") return rows.length * 7;
+  if (type === "monthly") return rows.length * 30;
+  return rows.length;
+}
+function monthLabel(dateISO){
+  const d = new Date(dateISO + "T00:00:00");
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function monthPrettyLabel(dateISO){
+  const d = new Date(dateISO + "T00:00:00");
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
-  const day = String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
+  return `Mes ${y}-${m}`;
 }
-function addDaysISO(dateISO, days){
+function isoWeekLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
-  d.setDate(d.getDate()+days);
-  return toISODate(d);
+  const w = isoWeek(d);
+  return `${w.year}-W${String(w.week).padStart(2,"0")}`;
 }
-function weekdayES(dateISO){
+function weekRangeLabel(dateISO){
   const d = new Date(dateISO + "T00:00:00");
-  const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
-  return days[d.getDay()];
+  const w = isoWeek(d);
+  const mon = w.mondayISO;
+  const sun = addDaysISO(mon, 6);
+  return `Semana ${w.year}-W${String(w.week).padStart(2,"0")} (${mon}→${sun})`;
 }
-function weekMeta(dateISO){
-  const date = new Date(dateISO + "T00:00:00");
+function isoWeek(date){
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -1338,26 +913,587 @@ function weekMeta(dateISO){
   return { year, week: weekNo, mondayISO };
 }
 
-/* =========================
-   Import file handler wiring
-========================= */
-importFile?.addEventListener("change", importBackup);
+function buildReport(type, store, from=null, to=null){
+  const all = Object.values(state.entries || {});
+  if (!all.length) return [];
 
-/* =========================
-   Prefill last email
-========================= */
-if(settings.lastEmail && emailInput){
-  emailInput.value = settings.lastEmail;
+  const filtered = all.filter(e => {
+    if (store !== "global" && e.store !== store) return false;
+    if (from && e.date < from) return false;
+    if (to && e.date > to) return false;
+    return true;
+  });
+
+  const map = new Map();
+
+  for (const e of filtered){
+    const date = e.date;
+    const cash = Number(e.cash || 0);
+    const card = Number(e.card || 0);
+    const ticket = Number(e.ticket || 0);
+
+    let period, periodLabel;
+    if (type === "daily"){
+      period = date;
+      periodLabel = dailyLabelWithWeekday(date);
+    } else if (type === "weekly"){
+      period = isoWeekLabel(date);
+      periodLabel = weekRangeLabel(date);
+    } else {
+      period = monthLabel(date);
+      periodLabel = monthPrettyLabel(date);
+    }
+
+    const prev = map.get(period) || {
+      period, periodLabel,
+      cash:0, card:0, total:0, ticket:0,
+      sortKey: periodSortKey(type, date)
+    };
+
+    prev.cash += cash;
+    prev.card += card;
+    prev.total += (cash + card);
+    prev.ticket += ticket;
+    prev.sortKey = Math.min(prev.sortKey, periodSortKey(type, date));
+
+    map.set(period, prev);
+  }
+
+  const rows = Array.from(map.values());
+  rows.sort((a,b)=> a.sortKey - b.sortKey);
+
+  return rows.map(r => ({
+    period: r.period,
+    periodLabel: r.periodLabel,
+    cash: round2(r.cash),
+    card: round2(r.card),
+    total: round2(r.total),
+    ticket: round2(r.ticket),
+    diffT: round2(r.total - r.ticket), // ✅
+    sortKey: r.sortKey
+  }));
 }
 
-/* =========================
-   Small UX: Enter focus
-========================= */
-[emailInput, passInput, cashInput, cardInput, expensesInput, ticketInput].forEach((el)=>{
-  el?.addEventListener("focus", ()=>{ try{ el.select(); }catch{} });
-});
+function baseChartOptions(){
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const labelColor = isDark ? "#eaf0ff" : "#101828";
+  const gridColor = isDark ? "rgba(255,255,255,.08)" : "rgba(0,0,0,.06)";
+  return {
+    responsive: true,
+    plugins: { legend: { labels: { color: labelColor } } },
+    scales: {
+      x: { ticks: { color: labelColor }, grid: { color: gridColor } },
+      y: { ticks: { color: labelColor }, grid: { color: gridColor } },
+    }
+  };
+}
 
-/* =========================
-   Cloud badge initial
-========================= */
-setCloudBadge("warn","☁️ Nube: desconectada");
+function movingAverage(arr, w){
+  const out = [];
+  for (let i=0;i<arr.length;i++){
+    const start = Math.max(0, i - (w - 1));
+    const slice = arr.slice(start, i+1);
+    const avg = slice.reduce((a,b)=>a+b,0) / slice.length;
+    out.push(round2(avg));
+  }
+  return out;
+}
+
+function renderCharts(rows){
+  const labels = rows.map(r => r.periodLabel);
+  const totals = rows.map(r => r.total);
+  const cash = rows.map(r => r.cash);
+  const card = rows.map(r => r.card);
+  const tickets = rows.map(r => r.ticket);
+  const ma = movingAverage(totals, 3);
+
+  if (chartTotal) chartTotal.destroy();
+  chartTotal = new Chart($("chartTotal"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Total", data: totals, tension: 0.25, borderWidth: 2, pointRadius: 2 },
+        { label: "Media (3)", data: ma, tension: 0.25, borderWidth: 2, pointRadius: 0 }
+      ]
+    },
+    options: baseChartOptions()
+  });
+
+  if (chartMix) chartMix.destroy();
+  chartMix = new Chart($("chartMix"), {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Efectivo", data: cash }, { label: "Tarjeta", data: card }] },
+    options: baseChartOptions()
+  });
+
+  if (chartTicket) chartTicket.destroy();
+  chartTicket = new Chart($("chartTicket"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Total", data: totals, tension: 0.25, borderWidth: 2, pointRadius: 2 },
+        { label: "Ticket", data: tickets, tension: 0.25, borderWidth: 2, pointRadius: 2 }
+      ]
+    },
+    options: baseChartOptions()
+  });
+}
+
+function renderRanking(from, to){
+  const sums = STORES.map(s => {
+    const rows = buildReport("daily", s.id, from, to);
+    const total = rows.reduce((a,r)=>a + r.total, 0);
+    return { id: s.id, name: s.name, total };
+  }).sort((a,b)=> b.total - a.total);
+
+  rankList.innerHTML = "";
+  for (const it of sums){
+    const div = document.createElement("div");
+    div.className = "rankitem";
+    div.innerHTML = `
+      <div class="left"><div class="dot"></div><div><b>${escapeHtml(it.name)}</b></div></div>
+      <div>${formatMoney(it.total)}</div>
+    `;
+    rankList.appendChild(div);
+  }
+
+  const best = sums[0];
+  const worst = sums[sums.length - 1];
+
+  bestStore.textContent = best ? best.name : "—";
+  bestStoreTxt.textContent = best ? `Total: ${formatMoney(best.total)}` : "—";
+
+  worstStore.textContent = worst ? worst.name : "—";
+  worstStoreTxt.textContent = worst ? `Total: ${formatMoney(worst.total)}` : "—";
+}
+
+function refreshReports(){
+  const type = reportType.value;
+  const store = reportStore.value;
+  const from = rangeFrom.value || null;
+  const to = rangeTo.value || null;
+
+  const rows = buildReport(type, store, from, to);
+
+  const sum = rows.reduce((acc,r)=>({
+    cash: acc.cash + r.cash,
+    card: acc.card + r.card,
+    total: acc.total + r.total,
+    ticket: acc.ticket + r.ticket,
+  }), {cash:0, card:0, total:0, ticket:0});
+
+  const diffT = round2(sum.total - sum.ticket);
+  const daysCount = estimateDaysCovered(rows, type);
+  const avg = (daysCount > 0) ? (sum.total / daysCount) : 0;
+
+  kpiCash.textContent = formatMoney(sum.cash);
+  kpiCard.textContent = formatMoney(sum.card);
+  kpiTotal.textContent = formatMoney(sum.total);
+  kpiTicket.textContent = formatMoney(sum.ticket);
+  kpiDiff.textContent = `${diffT.toFixed(2)}€ (${diffHuman(diffT)})`;
+  kpiAvg.textContent = formatMoney(avg);
+
+  reportTableBody.innerHTML = "";
+  for (const r of rows){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(r.periodLabel)}</td>
+      <td>${formatMoney(r.cash)}</td>
+      <td>${formatMoney(r.card)}</td>
+      <td><b>${formatMoney(r.total)}</b></td>
+      <td>${formatMoney(r.ticket)}</td>
+      <td>${r.diffT.toFixed(2)}€</td>
+    `;
+    reportTableBody.appendChild(tr);
+  }
+
+  tableHint.textContent = rows.length
+    ? `Mostrando ${rows.length} periodos. Rango: ${from || "—"} → ${to || "—"}`
+    : "No hay datos en ese rango.";
+
+  renderCharts(rows);
+  renderRanking(from, to);
+}
+
+/* ============== Export/Import/CSV/WhatsApp report ============== */
+function exportJSON(){
+  const payload = {
+    meta: { app: "ARSLAN_FACT_CLOUD_V1", uid: UID, exportedAt: new Date().toISOString() },
+    state,
+    settings: { goals: settings.goals }
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `backup_arslan_fact_${toISODate(new Date())}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(){
+  const file = importFile.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try{
+      const payload = JSON.parse(reader.result);
+      if (!payload?.state?.entries) throw new Error("Formato no válido.");
+
+      // merge, no reemplazo ciego
+      const m = mergeEntries(state.entries, payload.state.entries);
+      state.entries = m.merged;
+      saveState();
+
+      if (payload.settings?.goals){
+        settings.goals = payload.settings.goals;
+        saveSettings();
+      }
+
+      ensureDefaults();
+      renderAll();
+
+      alert("Importado y fusionado ✅");
+      cloudPushDebounced();
+    }catch(err){
+      alert("Error importando: " + err.message);
+    }finally{
+      importFile.value = "";
+    }
+  };
+  reader.readAsText(file);
+}
+
+function exportCSV(){
+  const type = reportType.value;
+  const store = reportStore.value;
+  const from = rangeFrom.value || null;
+  const to = rangeTo.value || null;
+
+  const rows = buildReport(type, store, from, to);
+  if (!rows.length){
+    alert("No hay datos para exportar.");
+    return;
+  }
+
+  const header = ["Periodo","Efectivo","Tarjeta","Total","Ticket","DifTicket"];
+  const lines = [header.join(";")];
+
+  for (const r of rows){
+    lines.push([
+      `"${r.periodLabel.replaceAll('"','""')}"`,
+      r.cash.toFixed(2).replace(".", ","),
+      r.card.toFixed(2).replace(".", ","),
+      r.total.toFixed(2).replace(".", ","),
+      r.ticket.toFixed(2).replace(".", ","),
+      r.diffT.toFixed(2).replace(".", ",")
+    ].join(";"));
+  }
+
+  const csv = lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `reporte_${type}_${store}_${(from||"")}_${(to||"")}.csv`.replaceAll("__","_");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function sendWhatsAppReport(full=false){
+  const type = reportType.value;
+  const store = reportStore.value;
+  const from = rangeFrom.value || null;
+  const to = rangeTo.value || null;
+
+  const rows = buildReport(type, store, from, to);
+  if (!rows.length){
+    alert("No hay datos para este reporte.");
+    return;
+  }
+
+  const titleType = (type === "daily") ? "DIARIO" : (type === "weekly") ? "SEMANAL" : "MENSUAL";
+  const titleStore = (store === "global") ? "GLOBAL (3 tiendas)" : storeName(store);
+
+  const sum = rows.reduce((acc,r)=>({
+    cash: acc.cash + r.cash,
+    card: acc.card + r.card,
+    total: acc.total + r.total,
+    ticket: acc.ticket + r.ticket,
+  }), {cash:0, card:0, total:0, ticket:0});
+
+  const diffT = round2(sum.total - sum.ticket);
+
+  const list = full ? rows : rows.slice(-10);
+  const first = rows[0].periodLabel;
+  const last = rows[rows.length - 1].periodLabel;
+
+  const lines = [];
+  lines.push(`📈 *REPORTE ${titleType}*`);
+  lines.push(`🏷️ ${titleStore}`);
+  if (from || to) lines.push(`📌 Rango: ${from || "—"} → ${to || "—"}`);
+  lines.push(``);
+  lines.push(`💶 Efectivo: ${formatMoney(sum.cash)}`);
+  lines.push(`💳 Tarjeta: ${formatMoney(sum.card)}`);
+  lines.push(`🧾 TOTAL: ${formatMoney(sum.total)}`);
+  lines.push(`🧾 Ticket: ${formatMoney(sum.ticket)} · Dif: ${diffT.toFixed(2)}€ (${diffHuman(diffT)})`);
+  lines.push(``);
+  lines.push(`🗂️ *${full ? "Reporte completo" : "Últimos " + list.length + " periodos"}*:`);
+
+  for (const r of list){
+    lines.push(`• ${r.periodLabel} — Total ${formatMoney(r.total)} · Ticket ${formatMoney(r.ticket)} · Dif ${r.diffT.toFixed(2)}€`);
+  }
+
+  lines.push(``);
+  lines.push(`📌 Periodos: ${first} → ${last}`);
+
+  openWhatsApp(lines.join("\n"));
+}
+
+/* ============== Confirm modal ============== */
+let confirmCb = null;
+function openConfirm(title, text, okText="Sí, borrar", cb=null){
+  confirmTitle.textContent = title;
+  confirmText.textContent = text;
+  btnConfirmOk.textContent = okText;
+  confirmCb = cb;
+  confirmOverlay.classList.remove("hidden");
+}
+function closeConfirm(){
+  confirmOverlay.classList.add("hidden");
+  confirmCb = null;
+}
+
+/* ============== Render all ============== */
+function renderAll(){
+  fillEntryIfExists();
+  renderTodaySummary();
+  renderDayHistory();
+  renderGoals();
+  refreshReports();
+}
+
+/* ============== Events ============== */
+function bindEvents(){
+  // auth
+  btnSignIn.addEventListener("click", async ()=>{
+    const email = (emailInput.value||"").trim();
+    const pass = (passInput.value||"").trim();
+    if(!email || !pass){
+      toast(authMsg, "Introduce email y contraseña.", false);
+      return;
+    }
+
+    try{
+      setCloudBadge("warn","☁️ Nube: conectando…");
+      toast(authMsg, "Conectando…", true);
+      await signInEmailPassword(email, pass);
+      toast(authMsg, "Login correcto ✅", true);
+    }catch(e){
+      console.error(e);
+      toast(authMsg, "Error login: " + (e?.message || "error"), false);
+      setCloudBadge("bad","☁️ Nube: error login");
+    }
+  });
+
+  btnResetPass.addEventListener("click", async ()=>{
+    const email = (emailInput.value||"").trim();
+    if(!email){
+      toast(authMsg, "Escribe tu email para recuperar.", false);
+      return;
+    }
+    try{
+      await resetPassword(email);
+      toast(authMsg, "Te envié un email para cambiar la contraseña ✅", true);
+    }catch(e){
+      toast(authMsg, "Error: " + (e?.message || "error"), false);
+    }
+  });
+
+  btnThemeAuth.addEventListener("click", toggleTheme);
+
+  // tabs
+  tabButtons.forEach(btn => btn.addEventListener("click", ()=> activateTab(btn.dataset.tab)));
+
+  // theme
+  btnTheme.addEventListener("click", toggleTheme);
+
+  // menu
+  btnMenu.addEventListener("click", ()=> menuOverlay.classList.remove("hidden"));
+  btnCloseMenu.addEventListener("click", ()=> menuOverlay.classList.add("hidden"));
+  menuOverlay.addEventListener("click", (e)=>{
+    if (e.target === menuOverlay) menuOverlay.classList.add("hidden");
+  });
+
+  btnExportJSON.addEventListener("click", exportJSON);
+  importFile.addEventListener("change", importJSON);
+  btnExportCSV.addEventListener("click", exportCSV);
+  btnWhatsAppReport.addEventListener("click", ()=> sendWhatsAppReport(false));
+  btnWhatsAppReportFull.addEventListener("click", ()=> sendWhatsAppReport(true));
+
+  btnSignOut.addEventListener("click", async ()=>{
+    openConfirm(
+      "Salir de la nube",
+      "Vas a cerrar sesión. Tus datos quedan guardados en nube. ¿Continuar?",
+      "Sí, salir",
+      async ()=>{
+        closeConfirm();
+        await signOut();
+      }
+    );
+  });
+
+  // confirm modal
+  btnConfirmClose.addEventListener("click", closeConfirm);
+  btnConfirmCancel.addEventListener("click", closeConfirm);
+  btnConfirmOk.addEventListener("click", async ()=>{
+    if (confirmCb) await confirmCb();
+    closeConfirm();
+  });
+  confirmOverlay.addEventListener("click",(e)=>{ if(e.target===confirmOverlay) closeConfirm(); });
+
+  // date
+  btnToday.addEventListener("click", ()=> { dateInput.value = toISODate(new Date()); renderAll(); });
+  btnYesterday.addEventListener("click", ()=> { dateInput.value = addDaysISO(dateInput.value, -1); renderAll(); });
+
+  dateInput.addEventListener("change", ()=> renderAll());
+
+  // store quick
+  storeQuick.querySelectorAll(".storebtn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const v = btn.dataset.store;
+      storeInput.value = v;
+      highlightStoreQuick(v);
+      fillEntryIfExists();
+    });
+  });
+
+  storeInput.addEventListener("change", ()=>{
+    highlightStoreQuick(storeInput.value);
+    fillEntryIfExists();
+  });
+
+  // inputs
+  const moneyInputs = [cashInput, cardInput, ticketInput, expensesInput, cashCountedInput];
+  for (const el of moneyInputs){
+    el.addEventListener("input", ()=>{
+      normalizeMoneyInput(el);
+      updateBoxes();
+    });
+    el.addEventListener("focus", ()=>{ try{ el.select(); }catch{} });
+  }
+  notesInput.addEventListener("input", ()=>{ /* no-op */ });
+
+  // save
+  btnSave.addEventListener("click", ()=>{
+    const dateISO = dateInput.value;
+    const storeId = storeInput.value;
+
+    const payload = {
+      cash: round2(parseMoney(cashInput.value)),
+      card: round2(parseMoney(cardInput.value)),
+      ticket: round2(parseMoney(ticketInput.value)),
+      expenses: round2(parseMoney(expensesInput.value)),
+      cashCounted: round2(parseMoney(cashCountedInput.value)),
+      notes: (notesInput.value || "").trim()
+    };
+
+    setEntry(dateISO, storeId, payload);
+
+    const e = getEntry(dateISO, storeId);
+    const total = calcTotal(e);
+    const dt = calcTicketDiff(e);
+
+    toast(saveMsg, `Guardado ✅ (${storeName(storeId)} — Total ${formatMoney(total)} · Dif ${dt.toFixed(2)}€)`, true);
+
+    renderAll();
+    cloudPushDebounced();
+  });
+
+  btnClear.addEventListener("click", clearEntry);
+
+  // delete (confirm global)
+  btnDelete.addEventListener("click", ()=>{
+    const dateISO = dateInput.value;
+    const storeId = storeInput.value;
+    const e = getEntry(dateISO, storeId);
+    if(!e){
+      toast(saveMsg, "No existe registro para borrar.", false);
+      return;
+    }
+
+    openConfirm(
+      "Borrar registro (GLOBAL)",
+      "Esto borrará el registro en ESTE dispositivo y también en la NUBE (afecta a TODOS los dispositivos). ¿Seguro?",
+      "Sí, borrar en todos",
+      async ()=>{
+        deleteEntry(dateISO, storeId);
+        toast(saveMsg, "Registro borrado ✅", true);
+        renderAll();
+        cloudPushDebounced();
+      }
+    );
+  });
+
+  btnWhatsAppDay.addEventListener("click", ()=> openWhatsApp(buildWhatsAppDayText(dateInput.value)));
+
+  btnCopyDay.addEventListener("click", async ()=>{
+    const txt = buildWhatsAppDayText(dateInput.value);
+    await copyToClipboard(txt);
+    toast(saveMsg, "Copiado ✅", true);
+  });
+
+  btnSaveGoals.addEventListener("click", onSaveGoals);
+  btnRefresh.addEventListener("click", refreshReports);
+}
+
+/* ============== Boot ============== */
+(function boot(){
+  // Tema inicial (sin UID todavía, usa light)
+  applyTheme("light");
+
+  bindEvents();
+  activateTab("tab-entry");
+
+  // Init date defaults
+  dateInput.value = toISODate(new Date());
+  rangeFrom.value = dateInput.value.slice(0,7) + "-01";
+  rangeTo.value = dateInput.value;
+
+  highlightStoreQuick(storeInput.value);
+
+  // Auth state listener
+  const fb = getFirebase();
+  if(!fb){
+    setCloudBadge("bad","☁️ Firebase no configurado");
+    toast(authMsg, "Firebase no configurado.", false);
+    return;
+  }
+
+  fb.auth.onAuthStateChanged(async (user)=>{
+    if(!user){
+      UID = null;
+      cloud.ready = false;
+      setCloudBadge("warn","☁️ Nube: esperando login…");
+      showAuth();
+      return;
+    }
+
+    try{
+      await cloudInitAfterAuth(user);
+    }catch(e){
+      console.error(e);
+      setCloudBadge("warn","☁️ Nube: offline (local)");
+      showApp();
+      renderAll();
+    }
+  });
+})();
