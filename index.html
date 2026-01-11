@@ -84,7 +84,7 @@
 
           <button id="btnTheme" class="btn ghost icon-btn" title="Tema">🌙/☀️</button>
 
-          <!-- Menú acciones (secundario, no estorba) -->
+          <!-- Menú acciones -->
           <details class="menu">
             <summary class="btn ghost">⚙️</summary>
 
@@ -132,6 +132,28 @@
 
       <!-- TAB: ENTRADA -->
       <section class="tab-section active" id="tab-entry">
+
+        <!-- ✅ VENTAS (ENCIMA DE ENTRADA) -->
+        <div class="card card-pro ventas-hero">
+          <div class="ventas-hero-row">
+            <div class="ventas-hero-left">
+              <div class="ventas-hero-title">VENTAS</div>
+              <div class="muted small">Entrada diaria · 3 tiendas · efectivo + tarjeta · ticket</div>
+            </div>
+
+            <div class="ventas-hero-right">
+              <div class="ventas-chip">
+                <div class="k">Fecha</div>
+                <div class="v" id="ventasHeroDate">—</div>
+              </div>
+              <div class="ventas-chip">
+                <div class="k">Tienda</div>
+                <div class="v" id="ventasHeroStore">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="card card-pro">
           <div class="card-head">
             <h2>Entrada</h2>
@@ -159,7 +181,7 @@
                 </select>
                 <div class="muted small">Tip: usa los botones de tienda arriba.</div>
 
-                <!-- Mantengo este bloque por compatibilidad visual (aunque ya no sea “necesario”) -->
+                <!-- Mantengo este bloque por compatibilidad (tu JS lo usa en highlightStoreQuick si existe) -->
                 <div class="storequick" aria-hidden="true"></div>
               </div>
 
