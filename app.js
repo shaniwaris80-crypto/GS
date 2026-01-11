@@ -1352,6 +1352,74 @@ if (settings.appAuthed){
       if (b2){ b2.textContent = txt; b2.title = hint; }
     }catch(e){}
   }
+   /* =========================
+   THEME ICON SYNC (APPEND)
+   No toca funciones existentes
+========================= */
+(function(){
+  function isDark(){
+    return document.documentElement.getAttribute("data-theme") === "dark";
+  }
+  function setThemeButtons(){
+    const dark = isDark();
+    const txt = dark ? "☀️" : "🌙";
+    const hint = dark ? "Modo día" : "Modo noche";
+    try{
+      const b1 = document.getElementById("btnTheme");
+      const b2 = document.getElementById("btnThemeGate");
+      if (b1){ b1.textContent = txt; b1.title = hint; }
+      if (b2){ b2.textContent = txt; b2.title = hint; }
+    }catch(e){}
+  }
+  setThemeButtons();
+  try{
+    const obs = new MutationObserver(()=> setThemeButtons());
+    obs.observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
+  }catch(e){}
+  window.addEventListener("load", setThemeButtons);
+  window.addEventListener("focus", setThemeButtons);
+})();
+
+/* =========================
+   VENTAS HERO SYNC (APPEND)
+   No toca funciones existentes
+========================= */
+(function(){
+  const heroDate = document.getElementById("ventasHeroDate");
+  const heroStore = document.getElementById("ventasHeroStore");
+
+  function storeNameSafe(id){
+    try{
+      return (window.STORES || STORES).find(s => s.id === id)?.name || id || "—";
+    }catch(e){
+      return id || "—";
+    }
+  }
+
+  function syncHero(){
+    try{
+      const d = document.getElementById("dateInput")?.value || "—";
+      const s = document.getElementById("storeInput")?.value || "—";
+      if (heroDate) heroDate.textContent = d;
+      if (heroStore) heroStore.textContent = storeNameSafe(s);
+    }catch(e){}
+  }
+
+  window.addEventListener("load", syncHero);
+  document.getElementById("dateInput")?.addEventListener("change", syncHero);
+  document.getElementById("storeInput")?.addEventListener("change", syncHero);
+
+  document.querySelectorAll(".storebtn").forEach(b=>{
+    b.addEventListener("click", ()=> setTimeout(syncHero, 0));
+  });
+
+  document.getElementById("btnSave")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+  document.getElementById("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+  document.getElementById("btnClear")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+
+  syncHero();
+})();
+
 
   // Inicial
   setThemeButtons();
