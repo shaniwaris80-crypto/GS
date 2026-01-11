@@ -65,7 +65,8 @@ body{
 
 /* Views */
 .view{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}
-.app-view{align-items:flex-start}
+.app-view{align-items:flex-start;justify-content:flex-start}
+
 .hidden{display:none !important}
 
 /* Layout center */
