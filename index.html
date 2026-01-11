@@ -17,7 +17,7 @@
   <!-- CLOUD LOGIN (PRIMERO) -->
   <div id="cloudGate" class="view">
     <div class="card login-card">
-      <div class="brand brand-gate">
+      <div class="brand">
         <div class="logo">🥝</div>
         <div>
           <div class="brand-title">ARSLAN CLOUD</div>
@@ -66,51 +66,73 @@
   <!-- APP -->
   <div id="appView" class="view hidden app-view">
 
-    <!-- TOPBAR: marca + nube + tiendas ancladas -->
-    <header class="topbar topbar-new">
-      <div class="topbar-left">
-        <div class="badge badge-brand">🥝 ARSLAN</div>
-        <div>
-          <div class="title">Ventas</div>
-          <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
+    <!-- HEADER PRO -->
+    <header class="header-pro">
+
+      <!-- Row 1: Marca + nube + tema + menú -->
+      <div class="toprow">
+        <div class="brandbar">
+          <div class="badge badge-brand">🥝 ARSLAN</div>
+          <div class="brandtxt">
+            <div class="title">Ventas</div>
+            <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
+          </div>
+        </div>
+
+        <div class="rightbar">
+          <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: —</div>
+
+          <button id="btnTheme" class="btn ghost icon-btn" title="Tema">🌙/☀️</button>
+
+          <!-- Menú acciones (secundario, no estorba) -->
+          <details class="menu">
+            <summary class="btn ghost">⚙️</summary>
+
+            <div class="menu-panel">
+              <div class="menu-title">Acciones</div>
+
+              <button id="btnBackup" class="btn ghost wfull">Exportar JSON</button>
+
+              <label class="btn ghost file-label wfull">
+                Importar JSON
+                <input id="importFile" type="file" accept="application/json" hidden />
+              </label>
+
+              <div class="hr"></div>
+
+              <button id="btnCloudLogout" class="btn danger ghost wfull">Salir nube</button>
+              <button id="btnLogoutApp" class="btn danger wfull">Salir</button>
+
+              <div class="muted small" style="margin-top:8px">
+                Tip: usa exportar antes de cambios grandes.
+              </div>
+            </div>
+          </details>
         </div>
       </div>
 
-      <!-- Store switcher ANCLADO ARRIBA en horizontal -->
-      <div class="storebar" aria-label="Selector de tienda">
-        <button class="btn storebtn storepill" data-store="san_pablo">San Pablo</button>
-        <button class="btn storebtn storepill" data-store="san_lesmes">San Lesmes</button>
-        <button class="btn storebtn storepill" data-store="santiago">Santiago</button>
+      <!-- Row 2: Tiendas + Tabs -->
+      <div class="midrow">
+        <div class="storebar" aria-label="Selector de tienda">
+          <button class="btn storebtn storepill" data-store="san_pablo">San Pablo</button>
+          <button class="btn storebtn storepill" data-store="san_lesmes">San Lesmes</button>
+          <button class="btn storebtn storepill" data-store="santiago">Santiago</button>
+        </div>
+
+        <nav class="tabs tabs-pro" id="mobileTabs">
+          <button class="tab active" data-tab="tab-entry">Entrada</button>
+          <button class="tab" data-tab="tab-summary">Resumen</button>
+          <button class="tab" data-tab="tab-reports">Reportes</button>
+        </nav>
       </div>
 
-      <div class="topbar-right">
-        <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: —</div>
-
-        <button id="btnTheme" class="btn ghost">🌙/☀️</button>
-
-        <button id="btnBackup" class="btn ghost">Exportar JSON</button>
-        <label class="btn ghost file-label">
-          Importar JSON
-          <input id="importFile" type="file" accept="application/json" hidden />
-        </label>
-
-        <button id="btnCloudLogout" class="btn danger ghost">Salir nube</button>
-        <button id="btnLogoutApp" class="btn danger">Salir</button>
-      </div>
     </header>
 
-    <!-- TABS (ahora estilo “pills” y visible en móvil/desktop) -->
-    <nav class="mobile-tabs tabs-new" id="mobileTabs">
-      <button class="tab active" data-tab="tab-entry">Entrada</button>
-      <button class="tab" data-tab="tab-summary">Resumen</button>
-      <button class="tab" data-tab="tab-reports">Reportes</button>
-    </nav>
-
-    <main class="container container-new">
+    <main class="container container-pro">
 
       <!-- TAB: ENTRADA -->
       <section class="tab-section active" id="tab-entry">
-        <div class="card card-surface">
+        <div class="card card-pro">
           <div class="card-head">
             <h2>Entrada</h2>
             <div class="muted small">Efectivo, Tarjeta, Gastos y Ticket. Diferencia: (Efe+Tar) − Ticket.</div>
@@ -135,7 +157,10 @@
                   <option value="san_lesmes">San Lesmes</option>
                   <option value="santiago">Santiago</option>
                 </select>
-                <div class="muted small">Tip: Usa los botones de tienda arriba (más rápido).</div>
+                <div class="muted small">Tip: usa los botones de tienda arriba.</div>
+
+                <!-- Mantengo este bloque por compatibilidad visual (aunque ya no sea “necesario”) -->
+                <div class="storequick" aria-hidden="true"></div>
               </div>
 
             </div>
@@ -204,7 +229,7 @@
 
       <!-- TAB: RESUMEN -->
       <section class="tab-section" id="tab-summary">
-        <div class="card card-surface">
+        <div class="card card-pro">
           <div class="card-head">
             <h2>Resumen del día</h2>
             <div class="muted small">Totales por tienda y global · semáforo por diferencia.</div>
@@ -240,7 +265,7 @@
 
       <!-- TAB: REPORTES -->
       <section class="tab-section" id="tab-reports">
-        <div class="card card-surface">
+        <div class="card card-pro">
           <div class="card-head row space wrap">
             <div>
               <h2>Reportes</h2>
@@ -269,16 +294,16 @@
             </div>
           </div>
 
-          <div class="report-grid">
+          <div class="report-grid kpi-pro">
             <div class="kpi"><div class="k">Efectivo</div><div class="v" id="kpiCash">—</div></div>
             <div class="kpi"><div class="k">Tarjeta</div><div class="v" id="kpiCard">—</div></div>
-            <div class="kpi"><div class="k">TOTAL</div><div class="v" id="kpiTotal">—</div></div>
+            <div class="kpi kpi-total"><div class="k">TOTAL</div><div class="v" id="kpiTotal">—</div></div>
             <div class="kpi"><div class="k">Ticket</div><div class="v" id="kpiTicket">—</div></div>
-            <div class="kpi"><div class="k">Dif (Total−Ticket)</div><div class="v" id="kpiDiff">—</div></div>
+            <div class="kpi kpi-diff"><div class="k">Dif (Total−Ticket)</div><div class="v" id="kpiDiff">—</div></div>
             <div class="kpi"><div class="k">Promedio/día</div><div class="v" id="kpiAvg">—</div></div>
           </div>
 
-          <div class="charts charts-new">
+          <div class="charts charts-pro">
             <div class="chart-card">
               <h3>Serie (Total) + media</h3>
               <canvas id="chartTotal" height="120"></canvas>
@@ -344,7 +369,7 @@
     </main>
 
     <footer class="footer muted small">
-      Guardado local + sincronización nube (Firebase RTDB) · Email/Password.
+      Guardado local + sincronización nube (Firebase RTDB) · Email/Password · FINAL PRO UI.
     </footer>
 
     <button id="btnScrollTop" class="fab-top" title="Subir">↑</button>
