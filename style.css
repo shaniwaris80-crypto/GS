@@ -20,7 +20,7 @@
   --bad: rgba(239,68,68,.14);
 }
 
-/* Oscuro opcional (solo si activas data-theme="dark") */
+/* Oscuro opcional */
 html[data-theme="dark"]{
   --bg:#0b0f14;
   --bg2:#0a1224;
@@ -552,15 +552,61 @@ html[data-theme="dark"] .fab-top{ background: rgba(0,0,0,.35); }
   .field{min-width:100%}
   .input.compact{min-width:100%}
 
-  /* Tabs: el JS ya controla mostrar/ocultar secciones */
   .tab-section{display:none}
   .tab-section.active{display:block}
 
-  /* En móvil: por defecto ocultamos charts extra (tu JS ya lo hace) */
   .charts-secondary{display:none}
 }
 
 @media (max-width: 520px){
   .storebar, .tabs{flex-direction:column;border-radius:18px}
   .storepill, .tab{width:100%}
+}
+
+/* ====== VENTAS HERO (encima de Entrada) ====== */
+.ventas-hero{
+  margin-bottom:12px;
+  padding:16px;
+}
+
+.ventas-hero-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.ventas-hero-title{
+  font-weight:900;
+  letter-spacing:1px;
+  font-size:14px;
+  opacity:.9;
+}
+
+.ventas-hero-right{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.ventas-chip{
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:10px 12px;
+  background: rgba(255,255,255,.55);
+  min-width:150px;
+}
+html[data-theme="dark"] .ventas-chip{ background: rgba(255,255,255,.05); }
+
+.ventas-chip .k{
+  font-size:11px;
+  color:var(--muted);
+  font-weight:800;
+  line-height:1.1;
+}
+.ventas-chip .v{
+  font-weight:900;
+  margin-top:4px;
 }
