@@ -510,4 +510,54 @@ label{font-size:12px;color:var(--muted);font-weight:800}
   .storebar{flex-direction:column;border-radius:18px}
   .storepill{width:100%}
   .mobile-tabs .tab{padding:12px 10px}
+  /* =========================
+   SMOOTH THEME TRANSITIONS + PREMIUM TOUCH
+   (append)
+========================= */
+
+:root, html, body, .card, .topbar, .mobile-tabs, .btn, .input, .pill, .kpi, .rank-card, .chart-card, .dayitem, .table th, .table td, .cloud-pill, .sticky-actions, .fab-top{
+  transition:
+    background-color .22s ease,
+    color .22s ease,
+    border-color .22s ease,
+    box-shadow .22s ease,
+    transform .12s ease,
+    filter .22s ease;
+}
+
+/* Topbar “premium” + brillo sutil */
+.topbar-new{
+  box-shadow: 0 10px 28px rgba(0,0,0,.06);
+}
+
+/* En oscuro, topbar un poco más “glass” */
+html[data-theme="dark"] .topbar-new{
+  box-shadow: 0 12px 34px rgba(0,0,0,.28);
+}
+
+/* Botón de tema: feedback visual */
+#btnTheme, #btnThemeGate{
+  min-width:64px;
+}
+
+/* Alto contraste en diferencia */
+#diffBox.ok{
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+}
+#diffBox.warn{
+  border-color: color-mix(in srgb, #f59e0b 45%, var(--line));
+}
+#diffBox.bad{
+  border-color: color-mix(in srgb, var(--danger) 60%, var(--line));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* Warnbox más “alarma” pero elegante */
+.warnbox{
+  box-shadow: 0 12px 28px rgba(0,0,0,.10);
+}
+
+/* Micro-animación al entrar hover en items */
+.dayitem:hover, .rankitem:hover{
+  filter: brightness(1.02);
 }
