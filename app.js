@@ -1330,144 +1330,50 @@ if (settings.appAuthed){
 } else {
   showGate();
 }
-/* =========================
-   THEME ICON SYNC (NO TOUCH EXISTING FUNCTIONS)
-   - Auto actualiza iconos ☀️/🌙 en Gate y App
-   - Observa data-theme para que sea 100% fiable
-========================= */
 
-(function(){
-  function isDark(){
-    return document.documentElement.getAttribute("data-theme") === "dark";
-  }
-
-  function setThemeButtons(){
-    const dark = isDark();
-    const txt = dark ? "☀️" : "🌙";
-    const hint = dark ? "Modo día" : "Modo noche";
-    try{
-      const b1 = document.getElementById("btnTheme");
-      const b2 = document.getElementById("btnThemeGate");
-      if (b1){ b1.textContent = txt; b1.title = hint; }
-      if (b2){ b2.textContent = txt; b2.title = hint; }
-    }catch(e){}
-  }
-   /* =========================
-   THEME ICON SYNC (APPEND)
-   No toca funciones existentes
-========================= */
-(function(){
-  function isDark(){
-    return document.documentElement.getAttribute("data-theme") === "dark";
-  }
-  function setThemeButtons(){
-    const dark = isDark();
-    const txt = dark ? "☀️" : "🌙";
-    const hint = dark ? "Modo día" : "Modo noche";
-    try{
-      const b1 = document.getElementById("btnTheme");
-      const b2 = document.getElementById("btnThemeGate");
-      if (b1){ b1.textContent = txt; b1.title = hint; }
-      if (b2){ b2.textContent = txt; b2.title = hint; }
-    }catch(e){}
-  }
-  setThemeButtons();
-  try{
-    const obs = new MutationObserver(()=> setThemeButtons());
-    obs.observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
-  }catch(e){}
-  window.addEventListener("load", setThemeButtons);
-  window.addEventListener("focus", setThemeButtons);
-})();
-
-/* =========================
-   VENTAS HERO SYNC (APPEND)
-   No toca funciones existentes
-========================= */
+/* =========================================================
+   ✅ APPEND PRO: HERO "VENTAS HOY" (Global + semáforo)
+   NO toca tus funciones, solo las usa.
+========================================================= */
 (function(){
   const heroDate = document.getElementById("ventasHeroDate");
   const heroStore = document.getElementById("ventasHeroStore");
-
-  function storeNameSafe(id){
-    try{
-      return (window.STORES || STORES).find(s => s.id === id)?.name || id || "—";
-    }catch(e){
-      return id || "—";
-    }
-  }
-
-  function syncHero(){
-    try{
-      const d = document.getElementById("dateInput")?.value || "—";
-      const s = document.getElementById("storeInput")?.value || "—";
-      if (heroDate) heroDate.textContent = d;
-      if (heroStore) heroStore.textContent = storeNameSafe(s);
-    }catch(e){}
-  }
-
-  window.addEventListener("load", syncHero);
-  document.getElementById("dateInput")?.addEventListener("change", syncHero);
-  document.getElementById("storeInput")?.addEventListener("change", syncHero);
-
-  document.querySelectorAll(".storebtn").forEach(b=>{
-    b.addEventListener("click", ()=> setTimeout(syncHero, 0));
-  });
-
-  document.getElementById("btnSave")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-  document.getElementById("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-  document.getElementById("btnClear")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-
-  syncHero();
-})();
-
-
-  // Inicial
-  setThemeButtons();
-
-  // Observar cambios de tema (cuando toggleTheme/applyTheme actúan)
-  try{
-    const obs = new MutationObserver(()=> setThemeButtons());
-    obs.observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
-  }catch(e){}
-
-  // También al cargar por si el DOM tarda
-  window.addEventListener("load", setThemeButtons);
-
-  // Extra: si algún botón existe y se cambia el texto por otros scripts, lo re-sincroniza
-  window.addEventListener("focus", setThemeButtons);
-})();
-/* =========================
-   VENTAS HERO KPI (APPEND)
-   GLOBAL Hoy + DIF con semáforo
-   No toca funciones existentes
-========================= */
-(function(){
   const heroTotal = document.getElementById("ventasHeroTotal");
+  const heroCash = document.getElementById("ventasHeroCash");
+  const heroCard = document.getElementById("ventasHeroCard");
+  const heroTicket = document.getElementById("ventasHeroTicket");
   const heroDiff = document.getElementById("ventasHeroDiff");
   const heroDiffChip = document.getElementById("ventasHeroDiffChip");
 
-  function syncHeroKPI(){
+  function syncHero(){
     try{
-      const dateISO = document.getElementById("dateInput")?.value;
-      if (!dateISO){
+      const d = document.getElementById("dateInput")?.value;
+      const s = document.getElementById("storeInput")?.value;
+
+      if (heroDate) heroDate.textContent = d ? `${d} (${weekdayES(d)})` : "—";
+      if (heroStore) heroStore.textContent = s ? storeName(s) : "—";
+
+      if (!d){
         if (heroTotal) heroTotal.textContent = "—";
+        if (heroCash) heroCash.textContent = "—";
+        if (heroCard) heroCard.textContent = "—";
+        if (heroTicket) heroTicket.textContent = "—";
         if (heroDiff) heroDiff.textContent = "—";
+        if (heroDiffChip) heroDiffChip.classList.remove("ok","warn","bad");
         return;
       }
 
-      // usa tu función existente
-      const t = computeDay(dateISO);
-      const g = t?.global || { total:0, ticket:0, diff:0 };
+      const t = computeDay(d);
+      const g = t.global;
 
       if (heroTotal) heroTotal.textContent = formatMoney(g.total);
+      if (heroCash) heroCash.textContent = formatMoney(g.cash);
+      if (heroCard) heroCard.textContent = formatMoney(g.card);
+      if (heroTicket) heroTicket.textContent = formatMoney(g.ticket);
 
-      // DIF global (texto + signed)
       const diff = Number(g.diff || 0);
-      if (heroDiff){
-        heroDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
-      }
+      if (heroDiff) heroDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
 
-      // semáforo (usa tu semaClass)
       if (heroDiffChip){
         heroDiffChip.classList.remove("ok","warn","bad");
         heroDiffChip.classList.add(semaClass(diff));
@@ -1475,18 +1381,16 @@ if (settings.appAuthed){
     }catch(e){}
   }
 
-  // Enganchar a cambios típicos (sin tocar tus funciones)
-  window.addEventListener("load", syncHeroKPI);
-  document.getElementById("dateInput")?.addEventListener("change", syncHeroKPI);
-  document.getElementById("storeInput")?.addEventListener("change", syncHeroKPI);
+  window.addEventListener("load", syncHero);
+  document.getElementById("dateInput")?.addEventListener("change", syncHero);
+  document.getElementById("storeInput")?.addEventListener("change", syncHero);
+  document.getElementById("btnSave")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+  document.getElementById("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+  document.getElementById("btnClear")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
 
   document.querySelectorAll(".storebtn").forEach(b=>{
-    b.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
+    b.addEventListener("click", ()=> setTimeout(syncHero, 0));
   });
 
-  document.getElementById("btnSave")?.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
-  document.getElementById("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
-  document.getElementById("btnClear")?.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
-
-  syncHeroKPI();
+  syncHero();
 })();
