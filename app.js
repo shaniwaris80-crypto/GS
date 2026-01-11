@@ -1393,4 +1393,250 @@ if (settings.appAuthed){
   });
 
   syncHero();
+   /* =========================================================
+   ✅ ARSLAN PRO — PATCH APPEND ONLY (NO TOCAR LO EXISTENTE)
+   Añade:
+   1) Hero "VENTAS HOY" encima de Entrada (inyectado por JS)
+   2) Semáforo DIF (Total - Ticket): ok/warn/bad
+   3) Sync automático con cambios de fecha/tienda/guardar/borrar/limpiar
+========================================================= */
+
+(function ARSLAN_PRO_PATCH(){
+  // ---------- Utils seguros (no pisan lo tuyo) ----------
+  const $ = (id) => document.getElementById(id);
+  const q = (sel, root=document) => root.querySelector(sel);
+
+  function parseMoneySafe(v){
+    if (typeof window.parseMoney === "function") return window.parseMoney(v);
+    if (!v) return 0;
+    const clean = String(v).replace(/\./g,"").replace(",",".").replace(/[^\d.-]/g,"");
+    const n = Number(clean);
+    return Number.isFinite(n) ? n : 0;
+  }
+  function round2Safe(n){
+    if (typeof window.round2 === "function") return window.round2(n);
+    return Math.round((Number(n||0) + Number.EPSILON) * 100) / 100;
+  }
+  function formatMoneySafe(n){
+    if (typeof window.formatMoney === "function") return window.formatMoney(n);
+    return Number(n||0).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
+  }
+  function weekdaySafe(dateISO){
+    if (typeof window.weekdayES === "function") return window.weekdayES(dateISO);
+    const d = new Date(dateISO + "T00:00:00");
+    const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+    return days[d.getDay()];
+  }
+  function storeNameSafe(storeId){
+    if (typeof window.storeName === "function") return window.storeName(storeId);
+    const map = { san_pablo:"San Pablo", san_lesmes:"San Lesmes", santiago:"Santiago" };
+    return map[storeId] || storeId || "—";
+  }
+
+  function semaClass(diff){
+    const a = Math.abs(Number(diff||0));
+    if (a <= 10) return "ok";
+    if (a <= 20) return "warn";
+    return "bad";
+  }
+  function semaText(diff){
+    const v = Number(diff||0);
+    const abs = Math.abs(v).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (Math.abs(v) <= 0.01) return "Cuadra ✅";
+    if (v < 0) return `Faltan ${abs} €`;
+    return `Sobran ${abs} €`;
+  }
+  function formatSigned(diff){
+    const v = Number(diff||0);
+    const sign = v > 0 ? "+" : "";
+    return `${sign}${v.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €`;
+  }
+
+  // ---------- Calcula GLOBAL del día sin depender de tu computeDay ----------
+  function computeGlobalDay(dateISO){
+    // Si existe tu computeDay, úsala
+    if (typeof window.computeDay === "function"){
+      const t = window.computeDay(dateISO);
+      if (t && t.global) return t.global;
+    }
+
+    // Fallback: intenta leer state.entries si existe
+    const stores = ["san_pablo","san_lesmes","santiago"];
+    let cash=0, card=0, ticket=0, expenses=0;
+
+    const st = window.state && window.state.entries ? window.state : null;
+    if (st && st.entries){
+      for (const s of stores){
+        const k = `${dateISO}__${s}`;
+        const e = st.entries[k];
+        if (!e) continue;
+        cash += Number(e.cash||0);
+        card += Number(e.card||0);
+        ticket += Number(e.ticket||0);
+        expenses += Number(e.expenses||0);
+      }
+      const total = round2Safe(cash + card);
+      const diff = round2Safe(total - ticket);
+      return { cash:round2Safe(cash), card:round2Safe(card), ticket:round2Safe(ticket), expenses:round2Safe(expenses), total, diff };
+    }
+
+    // Último fallback: todo 0
+    const total = 0;
+    const diff = 0;
+    return { cash:0, card:0, ticket:0, expenses:0, total, diff };
+  }
+
+  // ---------- Inserta Hero encima de Entrada ----------
+  function injectHero(){
+    // Busca el contenedor del tab Entrada
+    const entryTab = $("tab-entry") || q(".tab-section#tab-entry") || q(".tab-section.active");
+    if (!entryTab) return null;
+
+    // Si ya existe, no duplicar
+    if ($("ventasHeroRoot")) return $("ventasHeroRoot");
+
+    // Crea nodo
+    const hero = document.createElement("div");
+    hero.id = "ventasHeroRoot";
+    hero.className = "ventas-hero";
+    hero.innerHTML = `
+      <div class="ventas-hero-left">
+        <div class="ventas-hero-title">VENTAS HOY</div>
+        <div class="ventas-hero-sub muted small">Global (3 tiendas) + semáforo. DIF: (Efe+Tar) − Ticket.</div>
+      </div>
+
+      <div class="ventas-hero-right">
+        <div class="ventas-chip">
+          <div class="k">Fecha</div>
+          <div class="v" id="ventasHeroDate">—</div>
+        </div>
+
+        <div class="ventas-chip">
+          <div class="k">Tienda</div>
+          <div class="v" id="ventasHeroStore">—</div>
+        </div>
+
+        <div class="ventas-chip ventas-chip-strong">
+          <div class="k">GLOBAL Hoy</div>
+          <div class="v" id="ventasHeroTotal">—</div>
+        </div>
+
+        <div class="ventas-chip">
+          <div class="k">Efectivo Global</div>
+          <div class="v" id="ventasHeroCash">—</div>
+        </div>
+
+        <div class="ventas-chip">
+          <div class="k">Tarjeta Global</div>
+          <div class="v" id="ventasHeroCard">—</div>
+        </div>
+
+        <div class="ventas-chip">
+          <div class="k">Ticket Global</div>
+          <div class="v" id="ventasHeroTicket">—</div>
+        </div>
+
+        <div class="ventas-chip ventas-chip-diff" id="ventasHeroDiffChip">
+          <div class="k">DIF Global</div>
+          <div class="v" id="ventasHeroDiff">—</div>
+        </div>
+      </div>
+    `;
+
+    // Insertar arriba del primer card del tab
+    const firstCard = entryTab.querySelector(".card") || entryTab.firstElementChild;
+    if (firstCard) entryTab.insertBefore(hero, firstCard);
+    else entryTab.appendChild(hero);
+
+    return hero;
+  }
+
+  // ---------- Sync Hero ----------
+  function syncHero(){
+    try{
+      injectHero();
+
+      const dateISO = $("dateInput")?.value || "";
+      const storeId = $("storeInput")?.value || "";
+
+      const hDate = $("ventasHeroDate");
+      const hStore = $("ventasHeroStore");
+      const hTotal = $("ventasHeroTotal");
+      const hCash = $("ventasHeroCash");
+      const hCard = $("ventasHeroCard");
+      const hTicket = $("ventasHeroTicket");
+      const hDiff = $("ventasHeroDiff");
+      const hDiffChip = $("ventasHeroDiffChip");
+
+      if (hDate) hDate.textContent = dateISO ? `${dateISO} (${weekdaySafe(dateISO)})` : "—";
+      if (hStore) hStore.textContent = storeId ? storeNameSafe(storeId) : "—";
+
+      if (!dateISO){
+        if (hTotal) hTotal.textContent = "—";
+        if (hCash) hCash.textContent = "—";
+        if (hCard) hCard.textContent = "—";
+        if (hTicket) hTicket.textContent = "—";
+        if (hDiff) hDiff.textContent = "—";
+        if (hDiffChip) hDiffChip.classList.remove("ok","warn","bad");
+        return;
+      }
+
+      const g = computeGlobalDay(dateISO);
+
+      if (hTotal) hTotal.textContent = formatMoneySafe(g.total);
+      if (hCash) hCash.textContent = formatMoneySafe(g.cash);
+      if (hCard) hCard.textContent = formatMoneySafe(g.card);
+      if (hTicket) hTicket.textContent = formatMoneySafe(g.ticket);
+
+      const diff = round2Safe(Number(g.total||0) - Number(g.ticket||0));
+      if (hDiff) hDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
+
+      if (hDiffChip){
+        hDiffChip.classList.remove("ok","warn","bad");
+        hDiffChip.classList.add(semaClass(diff));
+      }
+    }catch(e){}
+  }
+
+  // ---------- Listeners sin tocar tu código ----------
+  function hook(){
+    // Al cargar
+    syncHero();
+
+    // Cambios de fecha/tienda
+    $("dateInput")?.addEventListener("change", syncHero);
+    $("storeInput")?.addEventListener("change", syncHero);
+
+    // Si existen botones típicos
+    $("btnSave")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+    $("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+    $("btnClear")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+    $("btnToday")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+    $("btnYesterday")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+
+    // Store quick buttons
+    document.querySelectorAll(".storebtn").forEach(b=>{
+      b.addEventListener("click", ()=> setTimeout(syncHero, 0));
+    });
+
+    // Si hay renderizaciones internas, re-sincro en interval corto (suave)
+    // (evita que tarde si tu app repinta tab)
+    let tries = 0;
+    const t = setInterval(()=>{
+      syncHero();
+      tries++;
+      if (tries > 12) clearInterval(t);
+    }, 250);
+  }
+
+  // Espera a que exista appView o tab-entry
+  function waitReady(){
+    const ok = document.getElementById("appView") || document.getElementById("tab-entry");
+    if (ok) hook();
+    else setTimeout(waitReady, 120);
+  }
+  waitReady();
+
+})();
+
 })();
