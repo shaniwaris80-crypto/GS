@@ -39,10 +39,6 @@ body{
 
 .view{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}
 .app-view{align-items:flex-start}
-
-/* ✅ FIX BASE (no rompe gate) */
-.app-view{align-items:flex-start;justify-content:flex-start}
-
 .hidden{display:none !important}
 
 .container{width:min(1300px, 100%);margin:14px auto 24px;padding:0 14px 90px}
@@ -426,69 +422,6 @@ label{font-size:12px;color:var(--muted);font-weight:700}
 [data-theme="dark"] .fab-top{ background: rgba(0,0,0,.35); }
 .fab-top.show{display:block}
 
-/* ✅ VENTAS HOY HERO */
-.ventas-hero{
-  border:1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
-  background: rgba(255,255,255,.55);
-  backdrop-filter: blur(10px);
-  padding: 14px;
-  margin-bottom: 12px;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap: 12px;
-}
-[data-theme="dark"] .ventas-hero{
-  background: rgba(0,0,0,.25);
-}
-
-.ventas-hero-title{
-  font-weight: 900;
-  letter-spacing: .4px;
-  font-size: 14px;
-}
-.ventas-hero-right{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  justify-content:flex-end;
-  align-items:stretch;
-}
-
-.ventas-chip{
-  border:1px solid var(--line);
-  border-radius: 16px;
-  padding: 10px 12px;
-  background: rgba(16,24,40,.02);
-  min-width: 150px;
-}
-[data-theme="dark"] .ventas-chip{ background: rgba(255,255,255,.03); }
-
-.ventas-chip .k{
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 900;
-}
-.ventas-chip .v{
-  margin-top: 4px;
-  font-weight: 900;
-}
-
-.ventas-chip-strong{
-  border-color: rgba(34,197,94,.25);
-  box-shadow: 0 0 0 5px rgba(34,197,94,.08);
-}
-
-.ventas-chip-diff.ok{ background: var(--ok) !important; }
-.ventas-chip-diff.warn{ background: var(--warn) !important; }
-.ventas-chip-diff.bad{
-  background: var(--bad) !important;
-  border-color: rgba(239,68,68,.35) !important;
-  box-shadow: 0 0 0 6px rgba(239,68,68,.10);
-}
-
 /* Responsive */
 @media (max-width: 1100px){
   .report-grid{grid-template-columns:repeat(3, 1fr)}
@@ -505,39 +438,14 @@ label{font-size:12px;color:var(--muted);font-weight:700}
   .container{padding-bottom:120px}
   .storequick{display:flex}
   .grid2{grid-template-columns:1fr}
-  /* En móvil: por defecto ocultamos charts extra (se puede activar con botón) */
   .charts-secondary{display:none}
-  .ventas-hero{flex-direction:column}
-  .ventas-chip{min-width: 100%}
-  .ventas-hero-right{justify-content:stretch}
 }
 
 /* =========================================================
-   ✅ FIX DEFINITIVO ANTI-HUECO (gana siempre, no rompe Gate)
-   GitHub Pages a veces cachea, esto lo fuerza de verdad
-========================================================= */
-#appView.view{
-  justify-content: flex-start !important;
-  align-items: stretch !important;
-}
-#appView{
-  display: block !important;
-  min-height: 100vh !important;
-  padding: 0 !important;
-}
-#appView .container{
-  margin-top: 0 !important;
-  padding-top: 10px !important;
-}
-/* =========================================================
-   ✅ ARSLAN PRO — PATCH APPEND ONLY (NO TOCAR LO EXISTENTE)
-   - Arregla hueco gigante / layout raro
-   - Hero "VENTAS HOY" encima de Entrada
-   - Semáforo DIF: verde/amarillo/rojo
-   - Mejoras mobile + sticky actions
+   ✅ ARSLAN PRO — INTEGRADO (PACK 1–4)
 ========================================================= */
 
-/* FIX DEFINITIVO anti-hueco (gana siempre) */
+/* FIX DEFINITIVO anti-hueco */
 #appView{
   display:block !important;
   min-height:100vh !important;
@@ -618,15 +526,164 @@ label{font-size:12px;color:var(--muted);font-weight:700}
   box-shadow: 0 0 0 6px rgba(239,68,68,.10);
 }
 
-/* Sticky actions más limpio (si existe clase) */
-.sticky-actions{
-  backdrop-filter: blur(10px);
+.ventas-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:center;
 }
 
-/* Mobile: hero en columna */
+.ventas-btn{
+  border:1px solid var(--line, rgba(16,24,40,.10));
+  background: rgba(16,24,40,.02);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform .12s ease;
+}
+[data-theme="dark"] .ventas-btn{ background: rgba(255,255,255,.06); }
+.ventas-btn:hover{ transform: translateY(-1px); }
+.ventas-btn.primary{
+  background: linear-gradient(180deg, rgba(34,197,94,.95), rgba(34,197,94,.75));
+  border-color: rgba(34,197,94,.35);
+  color:#04140a;
+}
+.ventas-btn.ghost{ background: transparent; }
+
+.ventas-chip.smallchip{
+  min-width: 140px;
+}
+.ventas-chip.smallchip .v{
+  font-size: 14px;
+}
+
+/* Banda PRO */
+.arslan-probar{
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  width: 100%;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.78);
+  backdrop-filter: blur(10px);
+}
+[data-theme="dark"] .arslan-probar{
+  background: rgba(0,0,0,.30);
+}
+
+.probar-inner{
+  width: min(1300px, 100%);
+  margin: 0 auto;
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+}
+
+.probar-left{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.probar-brand{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  font-weight: 900;
+  letter-spacing:.4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(16,24,40,.02);
+}
+[data-theme="dark"] .probar-brand{ background: rgba(255,255,255,.06); }
+
+.probar-right{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+.probar-group{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(16,24,40,.02);
+}
+[data-theme="dark"] .probar-group{ background: rgba(255,255,255,.05); }
+
+.probtn{
+  border:1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform .12s ease;
+  white-space: nowrap;
+}
+.probtn:hover{ transform: translateY(-1px); }
+
+.probtn.primary{
+  background: linear-gradient(180deg, rgba(34,197,94,.95), rgba(34,197,94,.75));
+  border-color: rgba(34,197,94,.35);
+  color:#04140a;
+}
+.probtn.active{
+  border-color: rgba(34,197,94,.45);
+  box-shadow: 0 0 0 4px rgba(34,197,94,.12);
+}
+
+.probtn.compact{
+  padding: 9px 10px;
+  border-radius: 12px;
+}
+
+/* Glow DIF rojo */
+.ventas-chip-diff.bad{
+  animation: proglow 1.2s ease-in-out infinite alternate;
+}
+@keyframes proglow{
+  from{ box-shadow: 0 0 0 6px rgba(239,68,68,.10); }
+  to{ box-shadow: 0 0 0 10px rgba(239,68,68,.18); }
+}
+
+/* Range chip */
+.pro-rangechip{
+  border:1px solid var(--line);
+  background: rgba(16,24,40,.02);
+  border-radius: 16px;
+  padding: 10px 12px;
+  min-width: 170px;
+}
+[data-theme="dark"] .pro-rangechip{ background: rgba(255,255,255,.05); }
+.pro-rangechip .k{
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 900;
+}
+.pro-rangechip .v{
+  margin-top: 4px;
+  font-weight: 900;
+}
+
 @media (max-width: 980px){
   .ventas-hero{flex-direction:column}
   .ventas-chip{min-width:100%}
   .ventas-hero-right{justify-content:stretch}
+  .probtn{ padding: 9px 10px; }
+  .probar-inner{ gap:8px; }
 }
-
