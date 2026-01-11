@@ -633,4 +633,23 @@ html[data-theme="dark"] .ventas-chip{ background: rgba(255,255,255,.05); }
   border-color: rgba(239,68,68,.35) !important;
   box-shadow: 0 0 0 6px rgba(239,68,68,.10);
 }
+/* ===== FIX DEFINITIVO: evitar centrado vertical en la APP ===== */
+#appView.view{
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+
+/* si por cualquier motivo el contenedor sigue en flex, pasamos a block */
+#appView{
+  display: block !important;
+  min-height: 100vh !important;
+  padding: 0 !important;
+}
+
+/* el container que contiene los cards */
+#appView .container,
+#appView .container-pro{
+  margin-top: 0 !important;
+  padding-top: 10px !important;
+}
 
