@@ -1,46 +1,70 @@
+<!-- =========================
+     index.html
+     ARSLAN — Ventas 3 tiendas (Nube Email/Password + Multi-dispositivo)
+     ✅ CDN COMPAT (recomendado para GitHub Pages)
+     ✅ Login obligatorio (antes de ver la app)
+     ✅ NO guarda contraseñas en el código
+========================= -->
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1, viewport-fit=cover" />
-  <title>ARSLAN — Facturación Diaria (<3)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ARSLAN — Ventas 3 tiendas</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-  <!-- LOGIN -->
+  <!-- LOGIN (OBLIGATORIO) -->
   <div id="loginView" class="view">
     <div class="card login-card">
       <div class="brand">
         <div class="logo">🥝</div>
         <div>
           <div class="brand-title">ARSLAN</div>
-          <div class="brand-sub">Facturación diaria — 3 tiendas</div>
+          <div class="brand-sub">Ventas diarias — 3 tiendas · Nube segura (Email/Password)</div>
         </div>
       </div>
 
-      <h1>Entrar</h1>
-      <p class="muted">Introduce tu PIN para acceder.</p>
+      <h1>Iniciar sesión</h1>
+      <p class="muted">Conéctate a la nube para sincronizar entre dispositivos.</p>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Email</label>
+          <input id="emailInput" class="input" type="email" autocomplete="username" placeholder="tu@email.com" />
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input id="passInput" class="input" type="password" autocomplete="current-password" placeholder="••••••••" />
+        </div>
+      </div>
 
       <div class="row gap wrap">
-        <input id="pinInput" inputmode="numeric" maxlength="10" class="input pin" placeholder="PIN" />
         <button id="btnLogin" class="btn primary">Entrar</button>
+        <button id="btnResetPass" class="btn ghost">He olvidado la contraseña</button>
+        <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
       </div>
 
       <div id="loginMsg" class="msg"></div>
 
       <div class="hr"></div>
 
-      <div class="row space wrap">
-        <div class="muted small">Modo</div>
-        <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
-      </div>
+      <details class="hint">
+        <summary>📌 Importante</summary>
+        <div class="muted small" style="margin-top:8px">
+          • La contraseña <b>no</b> se guarda en el código. <br/>
+          • Si entras desde un dispositivo vacío, <b>NO</b> borrará la nube. <br/>
+          • Para borrar registros, se pide confirmación y se borra en <b>todos</b> los dispositivos.
+        </div>
+      </details>
     </div>
   </div>
 
@@ -50,60 +74,68 @@
       <div class="topbar-left">
         <div class="badge">🥝 ARSLAN</div>
         <div>
-          <div class="title">Facturación Diaria</div>
+          <div class="title">Ventas 3 tiendas</div>
           <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
         </div>
       </div>
 
       <div class="topbar-right">
-        <!-- ☁️ Estado nube -->
-        <div id="cloudStatus" class="cloud-pill">☁️ Nube: …</div>
-
+        <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: …</div>
         <button id="btnTheme" class="btn ghost">🌙/☀️</button>
-        <button id="btnBackup" class="btn ghost">Exportar JSON</button>
+        <button id="btnExport" class="btn ghost">Exportar</button>
         <label class="btn ghost file-label">
-          Importar JSON
+          Importar
           <input id="importFile" type="file" accept="application/json" hidden />
         </label>
         <button id="btnLogout" class="btn danger">Salir</button>
       </div>
     </header>
 
-    <!-- Mobile Tabs -->
-    <nav class="mobile-tabs" id="mobileTabs">
+    <!-- Mobile quick mode -->
+    <div class="mobile-head" id="mobileHead">
+      <div class="row gap wrap">
+        <div class="field" style="flex:1">
+          <label>Fecha</label>
+          <div class="datebar">
+            <input id="dateInput" type="date" class="input" />
+            <button id="btnToday" class="btn ghost">Hoy</button>
+            <button id="btnYesterday" class="btn ghost">Ayer</button>
+            <button id="btnTomorrow" class="btn ghost">Mañana</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="storequick" id="storeQuick">
+        <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
+        <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
+        <button class="btn storebtn" data-store="santiago">Santiago</button>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="tab-entry">Entrada</button>
-      <button class="tab" data-tab="tab-summary">Resumen</button>
-      <button class="tab" data-tab="tab-7days">7 días</button>
+      <button class="tab" data-tab="tab-day">Resumen</button>
       <button class="tab" data-tab="tab-reports">Reportes</button>
     </nav>
 
     <main class="container">
-
-      <!-- TAB: ENTRADA -->
-      <section class="tab-section" id="tab-entry">
+      <!-- ENTRADA -->
+      <section class="tab-section active" id="tab-entry">
         <div class="card">
           <div class="card-head">
-            <h2>Entrada diaria</h2>
-            <div class="muted small">Ventas + ticket + caja real (con gastos/retiradas/ingresos extra).</div>
+            <h2>Entrada rápida</h2>
+            <div class="muted small">Móvil: solo lo necesario · Escritorio: completo.</div>
           </div>
 
           <div class="form">
-
-            <!-- Fecha + tienda (UX móvil mejorada) -->
-            <div class="row gap wrap">
+            <div class="row gap wrap desktop-only">
               <div class="field">
                 <label>Fecha</label>
-
                 <div class="datebar">
-                  <input id="dateInput" type="date" class="input" />
-                  <button id="btnToday" class="btn ghost">Hoy</button>
-                  <button id="btnYesterday" class="btn ghost">Ayer</button>
-                  <button id="btnTomorrow" class="btn ghost">Mañana</button>
-                </div>
-
-                <div class="datejump">
-                  <button id="btnPrevDay" class="btn">← Día</button>
-                  <button id="btnNextDay" class="btn">Día →</button>
+                  <input id="dateInputDesk" type="date" class="input" />
+                  <button id="btnTodayDesk" class="btn ghost">Hoy</button>
+                  <button id="btnYesterdayDesk" class="btn ghost">Ayer</button>
+                  <button id="btnTomorrowDesk" class="btn ghost">Mañana</button>
                 </div>
               </div>
 
@@ -114,18 +146,12 @@
                   <option value="san_lesmes">San Lesmes</option>
                   <option value="santiago">Santiago</option>
                 </select>
-
-                <div class="storequick">
-                  <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
-                  <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
-                  <button class="btn storebtn" data-store="santiago">Santiago</button>
-                </div>
               </div>
             </div>
 
             <div class="row gap wrap">
               <div class="field">
-                <label>Efectivo declarado (€)</label>
+                <label>Efectivo (€)</label>
                 <input id="cashInput" class="input money" inputmode="decimal" placeholder="0,00" />
               </div>
               <div class="field">
@@ -136,56 +162,23 @@
 
             <div class="row gap wrap">
               <div class="field">
-                <label>Importe ticket (€)</label>
-                <input id="ticketInput" class="input money" inputmode="decimal" placeholder="0,00" />
-              </div>
-              <div class="field">
-                <label>Diferencia ticket (Ticket - Total)</label>
-                <div class="input readonly" id="diffBox">—</div>
-              </div>
-            </div>
-
-            <div class="hr"></div>
-
-            <h3>Movimientos de caja</h3>
-
-            <div class="row gap wrap">
-              <div class="field">
-                <label>Gastos del día (€)</label>
+                <label>Gastos (€)</label>
                 <input id="expensesInput" class="input money" inputmode="decimal" placeholder="0,00" />
               </div>
               <div class="field">
-                <label>Retiradas (sacado) (€)</label>
-                <input id="withdrawalsInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                <label>Ticket (€)</label>
+                <input id="ticketInput" class="input money" inputmode="decimal" placeholder="0,00" />
               </div>
             </div>
 
             <div class="row gap wrap">
               <div class="field">
-                <label>Ingresos extra (€)</label>
-                <input id="extraIncomeInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                <label>Total (Efe + Tar)</label>
+                <div id="totalBox" class="input readonly">—</div>
               </div>
               <div class="field">
-                <label>Efectivo contado (caja real) (€)</label>
-                <input id="cashCountedInput" class="input money" inputmode="decimal" placeholder="0,00" />
-              </div>
-            </div>
-
-            <div class="row gap wrap">
-              <div class="field" style="min-width:100%">
-                <label>Observaciones</label>
-                <textarea id="notesInput" class="input textarea" rows="3" placeholder="Ej: cambio, pago proveedor, falta 20€, etc."></textarea>
-              </div>
-            </div>
-
-            <div class="row gap wrap">
-              <div class="field">
-                <label>Efectivo esperado (ajustado)</label>
-                <div class="input readonly" id="expectedCashBox">—</div>
-              </div>
-              <div class="field">
-                <label>Diferencia caja (contado - esperado)</label>
-                <div class="input readonly" id="cashDiffBox">—</div>
+                <label>Diferencia (Ticket − Total)</label>
+                <div id="diffBox" class="input readonly">—</div>
               </div>
             </div>
 
@@ -193,23 +186,7 @@
               <button id="btnSave" class="btn primary">Guardar</button>
               <button id="btnClear" class="btn">Limpiar</button>
               <button id="btnDelete" class="btn danger ghost">Borrar</button>
-              <button id="btnWhatsAppDay" class="btn whatsapp">WhatsApp (día)</button>
-            </div>
-
-            <div class="hr"></div>
-
-            <div class="card-sub">
-              <div class="row space wrap">
-                <div>
-                  <div class="muted small">Historial del día (clic para cargar)</div>
-                  <div class="muted small" id="dayHint">—</div>
-                </div>
-                <div class="row gap wrap">
-                  <button id="btnCopyDay" class="btn ghost">Copiar texto día</button>
-                </div>
-              </div>
-
-              <div id="dayList" class="daylist"></div>
+              <button id="btnGoSummary" class="btn ghost mobile-only">Ver resumen</button>
             </div>
 
             <div id="saveMsg" class="msg"></div>
@@ -217,12 +194,18 @@
         </div>
       </section>
 
-      <!-- TAB: RESUMEN -->
-      <section class="tab-section" id="tab-summary">
+      <!-- RESUMEN DEL DÍA -->
+      <section class="tab-section" id="tab-day">
         <div class="card">
-          <div class="card-head">
-            <h2>Resumen del día</h2>
-            <div class="muted small">Totales por tienda + global (ticket, diferencias, caja ajustada).</div>
+          <div class="card-head row space wrap">
+            <div>
+              <h2>Resumen del día</h2>
+              <div class="muted small">Por tienda + global · incluye descuadre Ticket.</div>
+            </div>
+            <div class="row gap wrap">
+              <button id="btnCopyDay" class="btn ghost">Copiar</button>
+              <button id="btnWhatsDay" class="btn whatsapp">WhatsApp</button>
+            </div>
           </div>
 
           <div class="summary">
@@ -230,155 +213,40 @@
               <div class="k">San Pablo</div>
               <div class="v" id="sumSP">—</div>
               <div class="s" id="sumSP2">—</div>
-              <div class="tagrow" id="semSP"></div>
             </div>
             <div class="pill">
               <div class="k">San Lesmes</div>
               <div class="v" id="sumSL">—</div>
               <div class="s" id="sumSL2">—</div>
-              <div class="tagrow" id="semSL"></div>
             </div>
             <div class="pill">
               <div class="k">Santiago</div>
               <div class="v" id="sumSA">—</div>
               <div class="s" id="sumSA2">—</div>
-              <div class="tagrow" id="semSA"></div>
             </div>
 
             <div class="hr"></div>
 
             <div class="pill big">
               <div class="k">GLOBAL (3 tiendas)</div>
-              <div class="v" id="sumGlobal">—</div>
-              <div class="s" id="sumGlobal2">—</div>
-              <div class="tagrow" id="semGlobal"></div>
+              <div class="v" id="sumG">—</div>
+              <div class="s" id="sumG2">—</div>
             </div>
 
             <div class="hr"></div>
-
-            <h3>Objetivos (por tienda + global)</h3>
-
-            <div class="grid-obj">
-              <div class="objcard">
-                <div class="objtitle">San Pablo</div>
-                <div class="row gap wrap">
-                  <div class="field">
-                    <label>Objetivo diario</label>
-                    <input id="goalDailySP" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                  <div class="field">
-                    <label>Objetivo mensual</label>
-                    <input id="goalMonthlySP" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="objcard">
-                <div class="objtitle">San Lesmes</div>
-                <div class="row gap wrap">
-                  <div class="field">
-                    <label>Objetivo diario</label>
-                    <input id="goalDailySL" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                  <div class="field">
-                    <label>Objetivo mensual</label>
-                    <input id="goalMonthlySL" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="objcard">
-                <div class="objtitle">Santiago</div>
-                <div class="row gap wrap">
-                  <div class="field">
-                    <label>Objetivo diario</label>
-                    <input id="goalDailySA" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                  <div class="field">
-                    <label>Objetivo mensual</label>
-                    <input id="goalMonthlySA" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="objcard">
-                <div class="objtitle">GLOBAL</div>
-                <div class="row gap wrap">
-                  <div class="field">
-                    <label>Objetivo diario</label>
-                    <input id="goalDailyG" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                  <div class="field">
-                    <label>Objetivo mensual</label>
-                    <input id="goalMonthlyG" class="input money" inputmode="decimal" placeholder="0,00" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="row gap wrap" style="margin-top:10px">
-              <button id="btnSaveGoals" class="btn">Guardar objetivos</button>
-            </div>
-
-            <div class="goalBox">
-              <div class="k">Cumplimiento (hoy, global)</div>
-              <div class="v" id="goalTodayPct">—</div>
-              <div class="s" id="goalTodayTxt">—</div>
-            </div>
-
-            <div class="goalBox">
-              <div class="k">Cumplimiento (mes actual, global)</div>
-              <div class="v" id="goalMonthPct">—</div>
-              <div class="s" id="goalMonthTxt">—</div>
-            </div>
-
+            <div class="muted small" id="dayHint">—</div>
+            <div id="dayList" class="daylist"></div>
           </div>
         </div>
       </section>
 
-      <!-- TAB: 7 DÍAS -->
-      <section class="tab-section" id="tab-7days">
-        <div class="card">
-          <div class="card-head row space wrap">
-            <div>
-              <h2>Últimos 7 días</h2>
-              <div class="muted small">Clic en fila para cargar · botón borrar.</div>
-            </div>
-            <div class="row gap wrap">
-              <button id="btnRefresh7" class="btn">Actualizar</button>
-              <button id="btnWhatsAppWeek" class="btn whatsapp">WhatsApp (semana)</button>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table class="table" id="table7">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Tienda</th>
-                  <th>Total</th>
-                  <th>Ticket</th>
-                  <th>DifT</th>
-                  <th>Esperado</th>
-                  <th>Contado</th>
-                  <th>DifCaja</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <div class="muted small" id="hint7"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB: REPORTES -->
+      <!-- REPORTES -->
       <section class="tab-section" id="tab-reports">
         <div class="card">
           <div class="card-head row space wrap">
             <div>
-              <h2>Reportes & Rendimiento</h2>
-              <div class="muted small">Diario / Semanal / Mensual — con rango, gráficos y ticket.</div>
+              <h2>Reportes inteligentes</h2>
+              <div class="muted small">Semanal / mensual / rango · gráficos + ranking.</div>
             </div>
 
             <div class="report-controls">
@@ -389,7 +257,7 @@
               </select>
 
               <select id="reportStore" class="input compact">
-                <option value="global">Global (3 tiendas)</option>
+                <option value="global">Global</option>
                 <option value="san_pablo">San Pablo</option>
                 <option value="san_lesmes">San Lesmes</option>
                 <option value="santiago">Santiago</option>
@@ -397,35 +265,33 @@
 
               <input id="rangeFrom" type="date" class="input compact" />
               <input id="rangeTo" type="date" class="input compact" />
-
               <button id="btnRefresh" class="btn">Actualizar</button>
-              <button id="btnWhatsAppReport" class="btn whatsapp">WhatsApp</button>
-              <button id="btnWhatsAppReportFull" class="btn whatsapp ghost">Completo</button>
+              <button id="btnWhatsReport" class="btn whatsapp">WhatsApp</button>
               <button id="btnExportCSV" class="btn ghost">CSV</button>
             </div>
           </div>
 
           <div class="report-grid">
-            <div class="kpi"><div class="k">Efectivo</div><div class="v" id="kpiCash">—</div></div>
-            <div class="kpi"><div class="k">Tarjeta</div><div class="v" id="kpiCard">—</div></div>
-            <div class="kpi"><div class="k">TOTAL</div><div class="v" id="kpiTotal">—</div></div>
-            <div class="kpi"><div class="k">Ticket</div><div class="v" id="kpiTicket">—</div></div>
-            <div class="kpi"><div class="k">Dif ticket</div><div class="v" id="kpiDiff">—</div></div>
-            <div class="kpi"><div class="k">Promedio/día</div><div class="v" id="kpiAvg">—</div></div>
+            <div class="kpi"><div class="k">Efectivo</div><div class="v" id="kCash">—</div></div>
+            <div class="kpi"><div class="k">Tarjeta</div><div class="v" id="kCard">—</div></div>
+            <div class="kpi"><div class="k">TOTAL</div><div class="v" id="kTotal">—</div></div>
+            <div class="kpi"><div class="k">Gastos</div><div class="v" id="kExp">—</div></div>
+            <div class="kpi"><div class="k">Ticket</div><div class="v" id="kTicket">—</div></div>
+            <div class="kpi"><div class="k">Dif ticket</div><div class="v" id="kDiff">—</div></div>
           </div>
 
           <div class="charts">
             <div class="chart-card">
               <h3>Serie (Total) + media</h3>
-              <canvas id="chartTotal" height="120"></canvas>
+              <canvas id="chTotal" height="120"></canvas>
             </div>
             <div class="chart-card">
               <h3>Mix (Efectivo vs Tarjeta)</h3>
-              <canvas id="chartMix" height="120"></canvas>
+              <canvas id="chMix" height="120"></canvas>
             </div>
             <div class="chart-card">
               <h3>Ticket vs Total</h3>
-              <canvas id="chartTicket" height="120"></canvas>
+              <canvas id="chTicket" height="120"></canvas>
             </div>
           </div>
 
@@ -433,20 +299,26 @@
 
           <div class="rank-grid">
             <div class="rank-card">
-              <h3>Ranking (rango)</h3>
+              <h3>Ranking (tiendas)</h3>
               <div id="rankList" class="ranklist"></div>
+              <div class="muted small" id="rankHint">—</div>
             </div>
             <div class="rank-card">
-              <h3>Mejor / Peor</h3>
+              <h3>Porcentajes (global)</h3>
               <div class="rankbox">
-                <div class="k">Mejor tienda</div>
-                <div class="v" id="bestStore">—</div>
-                <div class="s" id="bestStoreTxt">—</div>
+                <div class="k">San Pablo</div>
+                <div class="v" id="pctSP">—</div>
+                <div class="s" id="pctSP2">—</div>
               </div>
               <div class="rankbox">
-                <div class="k">Peor tienda</div>
-                <div class="v" id="worstStore">—</div>
-                <div class="s" id="worstStoreTxt">—</div>
+                <div class="k">San Lesmes</div>
+                <div class="v" id="pctSL">—</div>
+                <div class="s" id="pctSL2">—</div>
+              </div>
+              <div class="rankbox">
+                <div class="k">Santiago</div>
+                <div class="v" id="pctSA">—</div>
+                <div class="s" id="pctSA2">—</div>
               </div>
             </div>
           </div>
@@ -454,63 +326,63 @@
           <div class="hr"></div>
 
           <div class="table-wrap">
-            <table class="table" id="reportTable">
+            <table class="table" id="repTable">
               <thead>
-                <tr>
-                  <th>Periodo</th>
-                  <th>Efectivo</th>
-                  <th>Tarjeta</th>
-                  <th>Total</th>
-                  <th>Ticket</th>
-                  <th>Dif ticket</th>
-                </tr>
+              <tr>
+                <th>Periodo</th>
+                <th>Efectivo</th>
+                <th>Tarjeta</th>
+                <th>Total</th>
+                <th>Gastos</th>
+                <th>Ticket</th>
+                <th>Dif ticket</th>
+              </tr>
               </thead>
               <tbody></tbody>
             </table>
-            <div class="muted small" id="tableHint"></div>
+            <div class="muted small" id="repHint">—</div>
           </div>
         </div>
       </section>
-
     </main>
 
     <footer class="footer muted small">
-      Guardado local + sincronización en nube (Firebase RTDB).
+      Guardado local + sincronización segura en nube (Email/Password · RTDB).
     </footer>
 
-    <!-- UX: Botón subir (móvil) -->
-    <button id="btnScrollTop" class="fab-top" title="Subir">↑</button>
+    <button id="btnTop" class="fab-top" title="Subir">↑</button>
   </div>
 
-<!-- 🔥 Firebase CDN (Web plano) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+  <!-- Firebase CDN COMPAT (sin modules) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
-<script>
-  // Firebase CONFIG (TUYA)
-  window.__FIREBASE_CONFIG__ = {
-    apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
-    authDomain: "gsttt-82973.firebaseapp.com",
-    databaseURL: "https://gsttt-82973-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "gsttt-82973",
-    storageBucket: "gsttt-82973.firebasestorage.app",
-    messagingSenderId: "29419291414",
-    appId: "1:29419291414:web:0970ac92deb39983854637",
-    measurementId: "G-ZYVDBSG29J"
-  };
+  <script>
+    window.__FIREBASE_CONFIG__ = {
+      apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
+      authDomain: "gsttt-82973.firebaseapp.com",
+      databaseURL: "https://gsttt-82973-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "gsttt-82973",
+      storageBucket: "gsttt-82973.firebasestorage.app",
+      messagingSenderId: "29419291414",
+      appId: "1:29419291414:web:0970ac92deb39983854637"
+    };
 
-  // Exponer Firebase a app.js (SIN MODIFICAR TU LÓGICA)
-  window.__firebase = {
-    app: firebase.initializeApp(window.__FIREBASE_CONFIG__),
-    auth: firebase.auth(),
-    db: firebase.database(),
-    serverTimestamp: firebase.database.ServerValue.TIMESTAMP
-  };
-</script>
+    // init once
+    try{
+      firebase.initializeApp(window.__FIREBASE_CONFIG__);
+    }catch(e){
+      // ignore "already exists"
+    }
 
-<!-- TU APP -->
-<script src="app.js"></script>
+    window.__firebase = {
+      auth: firebase.auth(),
+      db: firebase.database(),
+      serverTimestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+  </script>
 
+  <script src="app.js"></script>
 </body>
 </html>
