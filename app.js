@@ -1436,3 +1436,57 @@ if (settings.appAuthed){
   // Extra: si algún botón existe y se cambia el texto por otros scripts, lo re-sincroniza
   window.addEventListener("focus", setThemeButtons);
 })();
+/* =========================
+   VENTAS HERO KPI (APPEND)
+   GLOBAL Hoy + DIF con semáforo
+   No toca funciones existentes
+========================= */
+(function(){
+  const heroTotal = document.getElementById("ventasHeroTotal");
+  const heroDiff = document.getElementById("ventasHeroDiff");
+  const heroDiffChip = document.getElementById("ventasHeroDiffChip");
+
+  function syncHeroKPI(){
+    try{
+      const dateISO = document.getElementById("dateInput")?.value;
+      if (!dateISO){
+        if (heroTotal) heroTotal.textContent = "—";
+        if (heroDiff) heroDiff.textContent = "—";
+        return;
+      }
+
+      // usa tu función existente
+      const t = computeDay(dateISO);
+      const g = t?.global || { total:0, ticket:0, diff:0 };
+
+      if (heroTotal) heroTotal.textContent = formatMoney(g.total);
+
+      // DIF global (texto + signed)
+      const diff = Number(g.diff || 0);
+      if (heroDiff){
+        heroDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
+      }
+
+      // semáforo (usa tu semaClass)
+      if (heroDiffChip){
+        heroDiffChip.classList.remove("ok","warn","bad");
+        heroDiffChip.classList.add(semaClass(diff));
+      }
+    }catch(e){}
+  }
+
+  // Enganchar a cambios típicos (sin tocar tus funciones)
+  window.addEventListener("load", syncHeroKPI);
+  document.getElementById("dateInput")?.addEventListener("change", syncHeroKPI);
+  document.getElementById("storeInput")?.addEventListener("change", syncHeroKPI);
+
+  document.querySelectorAll(".storebtn").forEach(b=>{
+    b.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
+  });
+
+  document.getElementById("btnSave")?.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
+  document.getElementById("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
+  document.getElementById("btnClear")?.addEventListener("click", ()=> setTimeout(syncHeroKPI, 0));
+
+  syncHeroKPI();
+})();
