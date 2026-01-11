@@ -1330,3 +1330,41 @@ if (settings.appAuthed){
 } else {
   showGate();
 }
+/* =========================
+   THEME ICON SYNC (NO TOUCH EXISTING FUNCTIONS)
+   - Auto actualiza iconos ☀️/🌙 en Gate y App
+   - Observa data-theme para que sea 100% fiable
+========================= */
+
+(function(){
+  function isDark(){
+    return document.documentElement.getAttribute("data-theme") === "dark";
+  }
+
+  function setThemeButtons(){
+    const dark = isDark();
+    const txt = dark ? "☀️" : "🌙";
+    const hint = dark ? "Modo día" : "Modo noche";
+    try{
+      const b1 = document.getElementById("btnTheme");
+      const b2 = document.getElementById("btnThemeGate");
+      if (b1){ b1.textContent = txt; b1.title = hint; }
+      if (b2){ b2.textContent = txt; b2.title = hint; }
+    }catch(e){}
+  }
+
+  // Inicial
+  setThemeButtons();
+
+  // Observar cambios de tema (cuando toggleTheme/applyTheme actúan)
+  try{
+    const obs = new MutationObserver(()=> setThemeButtons());
+    obs.observe(document.documentElement, { attributes:true, attributeFilter:["data-theme"] });
+  }catch(e){}
+
+  // También al cargar por si el DOM tarda
+  window.addEventListener("load", setThemeButtons);
+
+  // Extra: si algún botón existe y se cambia el texto por otros scripts, lo re-sincroniza
+  window.addEventListener("focus", setThemeButtons);
+})();
