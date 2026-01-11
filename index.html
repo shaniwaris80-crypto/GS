@@ -65,32 +65,48 @@
 
   <!-- APP -->
   <div id="appView" class="view hidden app-view">
+
+    <!-- TOPBAR (dos niveles: nav + acciones) -->
     <header class="topbar">
-      <div class="topbar-left">
-        <div class="badge">🥝 ARSLAN</div>
-        <div>
-          <div class="title">Ventas</div>
-          <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
+
+      <div class="topbar-row topbar-row--main">
+        <div class="topbar-left">
+          <div class="badge">🥝 ARSLAN</div>
+          <div class="topbar-meta">
+            <div class="title">Ventas</div>
+            <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: —</div>
+
+          <button id="btnTheme" class="btn ghost">🌙/☀️</button>
+
+          <div class="top-actions">
+            <button id="btnBackup" class="btn ghost">Exportar JSON</button>
+
+            <label class="btn ghost file-label">
+              Importar JSON
+              <input id="importFile" type="file" accept="application/json" hidden />
+            </label>
+
+            <button id="btnCloudLogout" class="btn danger ghost">Salir nube</button>
+            <button id="btnLogoutApp" class="btn danger">Salir</button>
+          </div>
         </div>
       </div>
 
-      <div class="topbar-right">
-        <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: —</div>
+      <!-- NAV (desktop y móvil, limpio) -->
+      <nav class="topnav" aria-label="Navegación principal">
+        <button class="tab active" data-tab="tab-entry">Entrada</button>
+        <button class="tab" data-tab="tab-summary">Resumen</button>
+        <button class="tab" data-tab="tab-reports">Reportes</button>
+      </nav>
 
-        <button id="btnTheme" class="btn ghost">🌙/☀️</button>
-
-        <button id="btnBackup" class="btn ghost">Exportar JSON</button>
-        <label class="btn ghost file-label">
-          Importar JSON
-          <input id="importFile" type="file" accept="application/json" hidden />
-        </label>
-
-        <button id="btnCloudLogout" class="btn danger ghost">Salir nube</button>
-        <button id="btnLogoutApp" class="btn danger">Salir</button>
-      </div>
     </header>
 
-    <!-- Mobile Tabs -->
+    <!-- Mobile Tabs (se mantiene por compatibilidad con tu JS, pero ahora lo ocultamos visualmente) -->
     <nav class="mobile-tabs" id="mobileTabs">
       <button class="tab active" data-tab="tab-entry">Entrada</button>
       <button class="tab" data-tab="tab-summary">Resumen</button>
@@ -101,89 +117,94 @@
 
       <!-- TAB: ENTRADA -->
       <section class="tab-section active" id="tab-entry">
-        <div class="card">
-          <div class="card-head">
-            <h2>Entrada</h2>
-            <div class="muted small">Efectivo, Tarjeta, Gastos y Ticket. La diferencia usa: (Efe+Tar) − Ticket.</div>
+        <div class="layout-two">
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Entrada</h2>
+              <div class="muted small">
+                Efectivo, Tarjeta, Gastos y Ticket. La diferencia usa: (Efe+Tar) − Ticket.
+              </div>
+            </div>
+
+            <div class="form">
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Fecha</label>
+                  <div class="datebar">
+                    <input id="dateInput" type="date" class="input" />
+                    <button id="btnToday" class="btn ghost">Hoy</button>
+                    <button id="btnYesterday" class="btn ghost">Ayer</button>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Tienda</label>
+                  <select id="storeInput" class="input">
+                    <option value="san_pablo">San Pablo</option>
+                    <option value="san_lesmes">San Lesmes</option>
+                    <option value="santiago">Santiago</option>
+                  </select>
+
+                  <div class="storequick">
+                    <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
+                    <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
+                    <button class="btn storebtn" data-store="santiago">Santiago</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Efectivo (€)</label>
+                  <input id="cashInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+                <div class="field">
+                  <label>Tarjeta (€)</label>
+                  <input id="cardInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+              </div>
+
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Gastos (€)</label>
+                  <input id="expensesInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+                <div class="field">
+                  <label>Ticket total (€)</label>
+                  <input id="ticketInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+              </div>
+
+              <div class="hr"></div>
+
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Total (Efectivo + Tarjeta)</label>
+                  <div id="totalBox" class="input readonly">—</div>
+                </div>
+                <div class="field">
+                  <label>Diferencia (Total − Ticket)</label>
+                  <div id="diffBox" class="input readonly">—</div>
+                </div>
+              </div>
+
+              <div id="diffWarn" class="warnbox hidden"></div>
+
+              <div class="actions sticky-actions">
+                <button id="btnSave" class="btn primary">Guardar</button>
+                <button id="btnClear" class="btn">Limpiar</button>
+                <button id="btnDelete" class="btn danger ghost">Borrar</button>
+              </div>
+
+              <div id="saveMsg" class="msg"></div>
+            </div>
           </div>
 
-          <div class="form">
-            <div class="row gap wrap">
-              <div class="field">
-                <label>Fecha</label>
-                <div class="datebar">
-                  <input id="dateInput" type="date" class="input" />
-                  <button id="btnToday" class="btn ghost">Hoy</button>
-                  <button id="btnYesterday" class="btn ghost">Ayer</button>
-                </div>
-              </div>
-
-              <div class="field">
-                <label>Tienda</label>
-                <select id="storeInput" class="input">
-                  <option value="san_pablo">San Pablo</option>
-                  <option value="san_lesmes">San Lesmes</option>
-                  <option value="santiago">Santiago</option>
-                </select>
-
-                <div class="storequick">
-                  <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
-                  <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
-                  <button class="btn storebtn" data-store="santiago">Santiago</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="row gap wrap">
-              <div class="field">
-                <label>Efectivo (€)</label>
-                <input id="cashInput" class="input money" inputmode="decimal" placeholder="0,00" />
-              </div>
-              <div class="field">
-                <label>Tarjeta (€)</label>
-                <input id="cardInput" class="input money" inputmode="decimal" placeholder="0,00" />
-              </div>
-            </div>
-
-            <div class="row gap wrap">
-              <div class="field">
-                <label>Gastos (€)</label>
-                <input id="expensesInput" class="input money" inputmode="decimal" placeholder="0,00" />
-              </div>
-              <div class="field">
-                <label>Ticket total (€)</label>
-                <input id="ticketInput" class="input money" inputmode="decimal" placeholder="0,00" />
-              </div>
-            </div>
-
-            <div class="hr"></div>
-
-            <div class="row gap wrap">
-              <div class="field">
-                <label>Total (Efectivo + Tarjeta)</label>
-                <div id="totalBox" class="input readonly">—</div>
-              </div>
-              <div class="field">
-                <label>Diferencia (Total − Ticket)</label>
-                <div id="diffBox" class="input readonly">—</div>
-              </div>
-            </div>
-
-            <div id="diffWarn" class="warnbox hidden"></div>
-
-            <div class="actions sticky-actions">
-              <button id="btnSave" class="btn primary">Guardar</button>
-              <button id="btnClear" class="btn">Limpiar</button>
-              <button id="btnDelete" class="btn danger ghost">Borrar</button>
-            </div>
-
-            <div id="saveMsg" class="msg"></div>
-
-            <div class="hr"></div>
-
-            <div class="row space wrap">
+          <div class="card card-side">
+            <div class="card-head row space wrap">
               <div>
-                <div class="muted small">Historial del día</div>
+                <h2>Historial del día</h2>
                 <div class="muted small" id="dayHint">—</div>
               </div>
               <div class="row gap wrap">
@@ -193,6 +214,7 @@
 
             <div id="dayList" class="daylist"></div>
           </div>
+
         </div>
       </section>
 
@@ -344,13 +366,12 @@
     <button id="btnScrollTop" class="fab-top" title="Subir">↑</button>
   </div>
 
-  <!-- Firebase COMPAT (simple para HTML plano) -->
+  <!-- Firebase COMPAT -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
   <script>
-    // ✅ TU CONFIG (igual que ya tenías)
     window.__FIREBASE_CONFIG__ = {
       apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
       authDomain: "gsttt-82973.firebaseapp.com",
