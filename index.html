@@ -1,70 +1,47 @@
-<!-- =========================
-     index.html
-     ARSLAN — Ventas 3 tiendas (Nube Email/Password + Multi-dispositivo)
-     ✅ CDN COMPAT (recomendado para GitHub Pages)
-     ✅ Login obligatorio (antes de ver la app)
-     ✅ NO guarda contraseñas en el código
-========================= -->
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>ARSLAN — Ventas 3 tiendas</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1, viewport-fit=cover" />
+  <title>ARSLAN — Facturación Diaria</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
 
-  <!-- Charts -->
+  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
+
 <body>
 
-  <!-- LOGIN (OBLIGATORIO) -->
+  <!-- LOGIN (PIN local) -->
   <div id="loginView" class="view">
     <div class="card login-card">
       <div class="brand">
         <div class="logo">🥝</div>
         <div>
           <div class="brand-title">ARSLAN</div>
-          <div class="brand-sub">Ventas diarias — 3 tiendas · Nube segura (Email/Password)</div>
+          <div class="brand-sub">Facturación diaria — 3 tiendas</div>
         </div>
       </div>
 
-      <h1>Iniciar sesión</h1>
-      <p class="muted">Conéctate a la nube para sincronizar entre dispositivos.</p>
-
-      <div class="grid2">
-        <div class="field">
-          <label>Email</label>
-          <input id="emailInput" class="input" type="email" autocomplete="username" placeholder="tu@email.com" />
-        </div>
-        <div class="field">
-          <label>Contraseña</label>
-          <input id="passInput" class="input" type="password" autocomplete="current-password" placeholder="••••••••" />
-        </div>
-      </div>
+      <h1>Entrar</h1>
+      <p class="muted">Introduce tu PIN para acceder.</p>
 
       <div class="row gap wrap">
+        <input id="pinInput" inputmode="numeric" maxlength="10" class="input pin" placeholder="PIN" />
         <button id="btnLogin" class="btn primary">Entrar</button>
-        <button id="btnResetPass" class="btn ghost">He olvidado la contraseña</button>
-        <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
       </div>
 
       <div id="loginMsg" class="msg"></div>
 
       <div class="hr"></div>
 
-      <details class="hint">
-        <summary>📌 Importante</summary>
-        <div class="muted small" style="margin-top:8px">
-          • La contraseña <b>no</b> se guarda en el código. <br/>
-          • Si entras desde un dispositivo vacío, <b>NO</b> borrará la nube. <br/>
-          • Para borrar registros, se pide confirmación y se borra en <b>todos</b> los dispositivos.
-        </div>
-      </details>
+      <div class="row space wrap">
+        <div class="muted small">Tema</div>
+        <button id="btnThemeLogin" class="btn ghost">🌙/☀️</button>
+      </div>
     </div>
   </div>
 
@@ -74,68 +51,52 @@
       <div class="topbar-left">
         <div class="badge">🥝 ARSLAN</div>
         <div>
-          <div class="title">Ventas 3 tiendas</div>
+          <div class="title">Facturación Diaria</div>
           <div class="subtitle muted small">San Pablo · San Lesmes · Santiago</div>
         </div>
       </div>
 
       <div class="topbar-right">
-        <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: …</div>
+        <div id="cloudStatus" class="cloud-pill warn">☁️ Nube: no conectada</div>
+
+        <button id="btnCloud" class="btn">Conectar nube</button>
         <button id="btnTheme" class="btn ghost">🌙/☀️</button>
-        <button id="btnExport" class="btn ghost">Exportar</button>
+
+        <button id="btnBackup" class="btn ghost">Exportar JSON</button>
         <label class="btn ghost file-label">
-          Importar
+          Importar JSON
           <input id="importFile" type="file" accept="application/json" hidden />
         </label>
+
         <button id="btnLogout" class="btn danger">Salir</button>
       </div>
     </header>
 
-    <!-- Mobile quick mode -->
-    <div class="mobile-head" id="mobileHead">
-      <div class="row gap wrap">
-        <div class="field" style="flex:1">
-          <label>Fecha</label>
-          <div class="datebar">
-            <input id="dateInput" type="date" class="input" />
-            <button id="btnToday" class="btn ghost">Hoy</button>
-            <button id="btnYesterday" class="btn ghost">Ayer</button>
-            <button id="btnTomorrow" class="btn ghost">Mañana</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="storequick" id="storeQuick">
-        <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
-        <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
-        <button class="btn storebtn" data-store="santiago">Santiago</button>
-      </div>
-    </div>
-
-    <nav class="tabs" id="tabs">
+    <!-- Mobile Tabs -->
+    <nav class="mobile-tabs" id="mobileTabs">
       <button class="tab active" data-tab="tab-entry">Entrada</button>
-      <button class="tab" data-tab="tab-day">Resumen</button>
+      <button class="tab" data-tab="tab-summary">Resumen</button>
       <button class="tab" data-tab="tab-reports">Reportes</button>
     </nav>
 
     <main class="container">
-      <!-- ENTRADA -->
+
+      <!-- TAB: ENTRADA -->
       <section class="tab-section active" id="tab-entry">
         <div class="card">
           <div class="card-head">
-            <h2>Entrada rápida</h2>
-            <div class="muted small">Móvil: solo lo necesario · Escritorio: completo.</div>
+            <h2>Entrada</h2>
+            <div class="muted small">Simple y rápido: Efectivo, Tarjeta, Gastos, Ticket.</div>
           </div>
 
           <div class="form">
-            <div class="row gap wrap desktop-only">
+            <div class="row gap wrap">
               <div class="field">
                 <label>Fecha</label>
                 <div class="datebar">
-                  <input id="dateInputDesk" type="date" class="input" />
-                  <button id="btnTodayDesk" class="btn ghost">Hoy</button>
-                  <button id="btnYesterdayDesk" class="btn ghost">Ayer</button>
-                  <button id="btnTomorrowDesk" class="btn ghost">Mañana</button>
+                  <input id="dateInput" type="date" class="input" />
+                  <button id="btnToday" class="btn ghost">Hoy</button>
+                  <button id="btnYesterday" class="btn ghost">Ayer</button>
                 </div>
               </div>
 
@@ -146,6 +107,12 @@
                   <option value="san_lesmes">San Lesmes</option>
                   <option value="santiago">Santiago</option>
                 </select>
+
+                <div class="storequick">
+                  <button class="btn storebtn" data-store="san_pablo">San Pablo</button>
+                  <button class="btn storebtn" data-store="san_lesmes">San Lesmes</button>
+                  <button class="btn storebtn" data-store="santiago">Santiago</button>
+                </div>
               </div>
             </div>
 
@@ -173,39 +140,90 @@
 
             <div class="row gap wrap">
               <div class="field">
-                <label>Total (Efe + Tar)</label>
-                <div id="totalBox" class="input readonly">—</div>
+                <label>Total (Efectivo + Tarjeta)</label>
+                <div class="input readonly" id="totalBox">—</div>
               </div>
               <div class="field">
-                <label>Diferencia (Ticket − Total)</label>
-                <div id="diffBox" class="input readonly">—</div>
+                <label>Diferencia (Total - Ticket)</label>
+                <div class="input readonly" id="diffBox">—</div>
               </div>
             </div>
+
+            <div class="hr"></div>
+
+            <!-- Caja (opcional, pero mantiene funciones avanzadas) -->
+            <details class="details">
+              <summary><b>Opcional: Caja real (avanzado)</b> <span class="muted small">Retiradas / Ingresos extra / Contado / Notas</span></summary>
+
+              <div class="row gap wrap" style="margin-top:12px">
+                <div class="field">
+                  <label>Retiradas (sacado) (€)</label>
+                  <input id="withdrawalsInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+                <div class="field">
+                  <label>Ingresos extra (€)</label>
+                  <input id="extraIncomeInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+              </div>
+
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Efectivo contado (caja real) (€)</label>
+                  <input id="cashCountedInput" class="input money" inputmode="decimal" placeholder="0,00" />
+                </div>
+                <div class="field">
+                  <label>Esperado (ajustado)</label>
+                  <div class="input readonly" id="expectedCashBox">—</div>
+                </div>
+              </div>
+
+              <div class="row gap wrap">
+                <div class="field">
+                  <label>Diferencia caja (Contado - Esperado)</label>
+                  <div class="input readonly" id="cashDiffBox">—</div>
+                </div>
+                <div class="field">
+                  <label>Observaciones</label>
+                  <textarea id="notesInput" class="input textarea" rows="3" placeholder="Ej: falta 20€, cambio, etc."></textarea>
+                </div>
+              </div>
+            </details>
 
             <div class="actions sticky-actions">
               <button id="btnSave" class="btn primary">Guardar</button>
               <button id="btnClear" class="btn">Limpiar</button>
               <button id="btnDelete" class="btn danger ghost">Borrar</button>
-              <button id="btnGoSummary" class="btn ghost mobile-only">Ver resumen</button>
+              <button id="btnWhatsAppDay" class="btn whatsapp">WhatsApp (día)</button>
             </div>
 
             <div id="saveMsg" class="msg"></div>
+
+            <div class="hr"></div>
+
+            <div class="card-sub">
+              <div class="row space wrap">
+                <div>
+                  <div class="muted small">Historial del día (clic para cargar)</div>
+                  <div class="muted small" id="dayHint">—</div>
+                </div>
+                <div class="row gap wrap">
+                  <button id="btnCopyDay" class="btn ghost">Copiar texto día</button>
+                </div>
+              </div>
+
+              <div id="dayList" class="daylist"></div>
+            </div>
+
           </div>
         </div>
       </section>
 
-      <!-- RESUMEN DEL DÍA -->
-      <section class="tab-section" id="tab-day">
+      <!-- TAB: RESUMEN -->
+      <section class="tab-section" id="tab-summary">
         <div class="card">
-          <div class="card-head row space wrap">
-            <div>
-              <h2>Resumen del día</h2>
-              <div class="muted small">Por tienda + global · incluye descuadre Ticket.</div>
-            </div>
-            <div class="row gap wrap">
-              <button id="btnCopyDay" class="btn ghost">Copiar</button>
-              <button id="btnWhatsDay" class="btn whatsapp">WhatsApp</button>
-            </div>
+          <div class="card-head">
+            <h2>Resumen del día</h2>
+            <div class="muted small">Totales por tienda + global + semáforo objetivos.</div>
           </div>
 
           <div class="summary">
@@ -213,40 +231,120 @@
               <div class="k">San Pablo</div>
               <div class="v" id="sumSP">—</div>
               <div class="s" id="sumSP2">—</div>
+              <div class="tagrow" id="semSP"></div>
             </div>
+
             <div class="pill">
               <div class="k">San Lesmes</div>
               <div class="v" id="sumSL">—</div>
               <div class="s" id="sumSL2">—</div>
+              <div class="tagrow" id="semSL"></div>
             </div>
+
             <div class="pill">
               <div class="k">Santiago</div>
               <div class="v" id="sumSA">—</div>
               <div class="s" id="sumSA2">—</div>
+              <div class="tagrow" id="semSA"></div>
             </div>
 
             <div class="hr"></div>
 
             <div class="pill big">
               <div class="k">GLOBAL (3 tiendas)</div>
-              <div class="v" id="sumG">—</div>
-              <div class="s" id="sumG2">—</div>
+              <div class="v" id="sumGlobal">—</div>
+              <div class="s" id="sumGlobal2">—</div>
+              <div class="tagrow" id="semGlobal"></div>
             </div>
 
             <div class="hr"></div>
-            <div class="muted small" id="dayHint">—</div>
-            <div id="dayList" class="daylist"></div>
+
+            <h3>Objetivos</h3>
+
+            <div class="grid-obj">
+              <div class="objcard">
+                <div class="objtitle">San Pablo</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailySP" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlySP" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="objcard">
+                <div class="objtitle">San Lesmes</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailySL" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlySL" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="objcard">
+                <div class="objtitle">Santiago</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailySA" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlySA" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="objcard">
+                <div class="objtitle">GLOBAL</div>
+                <div class="row gap wrap">
+                  <div class="field">
+                    <label>Objetivo diario</label>
+                    <input id="goalDailyG" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                  <div class="field">
+                    <label>Objetivo mensual</label>
+                    <input id="goalMonthlyG" class="input money" inputmode="decimal" placeholder="0,00" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row gap wrap" style="margin-top:10px">
+              <button id="btnSaveGoals" class="btn">Guardar objetivos</button>
+            </div>
+
+            <div class="goalBox">
+              <div class="k">Cumplimiento (hoy, global)</div>
+              <div class="v" id="goalTodayPct">—</div>
+              <div class="s" id="goalTodayTxt">—</div>
+            </div>
+
+            <div class="goalBox">
+              <div class="k">Cumplimiento (mes actual, global)</div>
+              <div class="v" id="goalMonthPct">—</div>
+              <div class="s" id="goalMonthTxt">—</div>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- REPORTES -->
+      <!-- TAB: REPORTES -->
       <section class="tab-section" id="tab-reports">
         <div class="card">
           <div class="card-head row space wrap">
             <div>
-              <h2>Reportes inteligentes</h2>
-              <div class="muted small">Semanal / mensual / rango · gráficos + ranking.</div>
+              <h2>Reportes & Rendimiento</h2>
+              <div class="muted small">Diario / Semanal / Mensual — KPIs, ranking y gráficos.</div>
             </div>
 
             <div class="report-controls">
@@ -257,7 +355,7 @@
               </select>
 
               <select id="reportStore" class="input compact">
-                <option value="global">Global</option>
+                <option value="global">Global (3 tiendas)</option>
                 <option value="san_pablo">San Pablo</option>
                 <option value="san_lesmes">San Lesmes</option>
                 <option value="santiago">Santiago</option>
@@ -265,33 +363,35 @@
 
               <input id="rangeFrom" type="date" class="input compact" />
               <input id="rangeTo" type="date" class="input compact" />
+
               <button id="btnRefresh" class="btn">Actualizar</button>
-              <button id="btnWhatsReport" class="btn whatsapp">WhatsApp</button>
+              <button id="btnWhatsAppReport" class="btn whatsapp">WhatsApp</button>
+              <button id="btnWhatsAppReportFull" class="btn whatsapp ghost">Completo</button>
               <button id="btnExportCSV" class="btn ghost">CSV</button>
             </div>
           </div>
 
           <div class="report-grid">
-            <div class="kpi"><div class="k">Efectivo</div><div class="v" id="kCash">—</div></div>
-            <div class="kpi"><div class="k">Tarjeta</div><div class="v" id="kCard">—</div></div>
-            <div class="kpi"><div class="k">TOTAL</div><div class="v" id="kTotal">—</div></div>
-            <div class="kpi"><div class="k">Gastos</div><div class="v" id="kExp">—</div></div>
-            <div class="kpi"><div class="k">Ticket</div><div class="v" id="kTicket">—</div></div>
-            <div class="kpi"><div class="k">Dif ticket</div><div class="v" id="kDiff">—</div></div>
+            <div class="kpi"><div class="k">Efectivo</div><div class="v" id="kpiCash">—</div></div>
+            <div class="kpi"><div class="k">Tarjeta</div><div class="v" id="kpiCard">—</div></div>
+            <div class="kpi"><div class="k">TOTAL</div><div class="v" id="kpiTotal">—</div></div>
+            <div class="kpi"><div class="k">Ticket</div><div class="v" id="kpiTicket">—</div></div>
+            <div class="kpi"><div class="k">Dif (Total-Ticket)</div><div class="v" id="kpiDiff">—</div></div>
+            <div class="kpi"><div class="k">Promedio/día</div><div class="v" id="kpiAvg">—</div></div>
           </div>
 
           <div class="charts">
             <div class="chart-card">
               <h3>Serie (Total) + media</h3>
-              <canvas id="chTotal" height="120"></canvas>
+              <canvas id="chartTotal" height="120"></canvas>
             </div>
             <div class="chart-card">
               <h3>Mix (Efectivo vs Tarjeta)</h3>
-              <canvas id="chMix" height="120"></canvas>
+              <canvas id="chartMix" height="120"></canvas>
             </div>
             <div class="chart-card">
               <h3>Ticket vs Total</h3>
-              <canvas id="chTicket" height="120"></canvas>
+              <canvas id="chartTicket" height="120"></canvas>
             </div>
           </div>
 
@@ -299,26 +399,20 @@
 
           <div class="rank-grid">
             <div class="rank-card">
-              <h3>Ranking (tiendas)</h3>
+              <h3>Ranking (rango)</h3>
               <div id="rankList" class="ranklist"></div>
-              <div class="muted small" id="rankHint">—</div>
             </div>
             <div class="rank-card">
-              <h3>Porcentajes (global)</h3>
+              <h3>Mejor / Peor</h3>
               <div class="rankbox">
-                <div class="k">San Pablo</div>
-                <div class="v" id="pctSP">—</div>
-                <div class="s" id="pctSP2">—</div>
+                <div class="k">Mejor tienda</div>
+                <div class="v" id="bestStore">—</div>
+                <div class="s" id="bestStoreTxt">—</div>
               </div>
               <div class="rankbox">
-                <div class="k">San Lesmes</div>
-                <div class="v" id="pctSL">—</div>
-                <div class="s" id="pctSL2">—</div>
-              </div>
-              <div class="rankbox">
-                <div class="k">Santiago</div>
-                <div class="v" id="pctSA">—</div>
-                <div class="s" id="pctSA2">—</div>
+                <div class="k">Peor tienda</div>
+                <div class="v" id="worstStore">—</div>
+                <div class="s" id="worstStoreTxt">—</div>
               </div>
             </div>
           </div>
@@ -326,39 +420,112 @@
           <div class="hr"></div>
 
           <div class="table-wrap">
-            <table class="table" id="repTable">
+            <table class="table" id="reportTable">
               <thead>
-              <tr>
-                <th>Periodo</th>
-                <th>Efectivo</th>
-                <th>Tarjeta</th>
-                <th>Total</th>
-                <th>Gastos</th>
-                <th>Ticket</th>
-                <th>Dif ticket</th>
-              </tr>
+                <tr>
+                  <th>Periodo</th>
+                  <th>Efectivo</th>
+                  <th>Tarjeta</th>
+                  <th>Total</th>
+                  <th>Ticket</th>
+                  <th>Dif (T-Ticket)</th>
+                </tr>
               </thead>
               <tbody></tbody>
             </table>
-            <div class="muted small" id="repHint">—</div>
+            <div class="muted small" id="tableHint"></div>
           </div>
+
+          <div class="hr"></div>
+
+          <!-- Últimos 7 días (se mantiene función, integrado en reportes) -->
+          <details class="details">
+            <summary><b>Últimos 7 días</b> <span class="muted small">Clic para cargar · borrar con confirmación</span></summary>
+            <div class="row gap wrap" style="margin-top:12px">
+              <button id="btnRefresh7" class="btn">Actualizar</button>
+              <button id="btnWhatsAppWeek" class="btn whatsapp">WhatsApp (semana)</button>
+            </div>
+
+            <div class="table-wrap" style="margin-top:12px">
+              <table class="table" id="table7">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tienda</th>
+                    <th>Total</th>
+                    <th>Ticket</th>
+                    <th>Dif</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="muted small" id="hint7"></div>
+            </div>
+          </details>
+
         </div>
       </section>
+
     </main>
 
     <footer class="footer muted small">
-      Guardado local + sincronización segura en nube (Email/Password · RTDB).
+      Guardado local + nube multi-dispositivo (Firebase Email/Password).
     </footer>
 
-    <button id="btnTop" class="fab-top" title="Subir">↑</button>
+    <button id="btnScrollTop" class="fab-top" title="Subir">↑</button>
   </div>
 
-  <!-- Firebase CDN COMPAT (sin modules) -->
+  <!-- MODAL: Conectar Nube -->
+  <div id="cloudModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="row space">
+        <h2>Conectar nube</h2>
+        <button id="btnCloseCloud" class="btn ghost">✕</button>
+      </div>
+
+      <p class="muted small" style="margin-top:6px">
+        Inicia sesión con tu email y contraseña (Firebase Auth). No se guarda la contraseña en el código.
+      </p>
+
+      <div class="row gap wrap" style="margin-top:10px">
+        <div class="field" style="min-width:100%">
+          <label>Email</label>
+          <input id="cloudEmail" class="input" type="email" placeholder="tu@email.com" />
+        </div>
+        <div class="field" style="min-width:100%">
+          <label>Contraseña</label>
+          <input id="cloudPass" class="input" type="password" placeholder="••••••••" />
+        </div>
+      </div>
+
+      <div class="row gap wrap" style="margin-top:10px">
+        <button id="btnCloudLogin" class="btn primary">Conectar</button>
+        <button id="btnCloudLogout" class="btn danger ghost">Desconectar</button>
+        <button id="btnCloudReset" class="btn ghost">Olvidé la contraseña</button>
+      </div>
+
+      <div id="cloudMsg" class="msg" style="margin-top:10px"></div>
+
+      <div class="hr"></div>
+
+      <details class="details">
+        <summary><b>Peligro: borrar TODO</b> <span class="muted small">pide confirmación y afecta a todos</span></summary>
+        <p class="muted small" style="margin-top:10px">
+          Esto elimina TODOS los datos del sistema (local y nube). Se pedirá confirmación.
+        </p>
+        <button id="btnDeleteAll" class="btn danger" style="margin-top:8px">Borrar TODO el sistema</button>
+      </details>
+    </div>
+  </div>
+
+  <!-- Firebase compat (CDN simple) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 
   <script>
+    // ✅ Tu config (sin credenciales de usuario)
     window.__FIREBASE_CONFIG__ = {
       apiKey: "AIzaSyB3sWpb9PVntGP2T83IzilnVK5v_LcaaXg",
       authDomain: "gsttt-82973.firebaseapp.com",
@@ -366,17 +533,12 @@
       projectId: "gsttt-82973",
       storageBucket: "gsttt-82973.firebasestorage.app",
       messagingSenderId: "29419291414",
-      appId: "1:29419291414:web:0970ac92deb39983854637"
+      appId: "1:29419291414:web:0970ac92deb39983854637",
+      measurementId: "G-ZYVDBSG29J"
     };
 
-    // init once
-    try{
-      firebase.initializeApp(window.__FIREBASE_CONFIG__);
-    }catch(e){
-      // ignore "already exists"
-    }
-
     window.__firebase = {
+      app: firebase.initializeApp(window.__FIREBASE_CONFIG__),
       auth: firebase.auth(),
       db: firebase.database(),
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
