@@ -165,6 +165,10 @@ function showApp(){
 
   refreshAllUI();
   try { highlightStoreQuick(storeInput.value); } catch {}
+
+  // ✅ PRO: inyectar hero + probar al entrar
+  try { PRO_injectHero(); PRO_syncHero(); } catch {}
+  try { PRO_injectProBar(); PRO_syncProBar(); } catch {}
 }
 
 function bindGateEvents(){
@@ -264,7 +268,6 @@ async function cloudRegister(){
 async function initCloudAfterAuth(email){
   const { auth, db, serverTimestamp } = window.__firebase;
 
-  // Estado actual
   const user = auth.currentUser;
   if (!user){
     cloud.ready = false;
@@ -306,7 +309,6 @@ async function initCloudAfterAuth(email){
   setCloudBadge("ok","☁️ Nube: online");
 
   // 3) Si la nube estaba vacía y local tiene datos → subimos (una vez)
-  //    (Esto cumple: dispositivo con datos NO pierde datos; dispositivo vacío NO pisa nube)
   if (cloud.remoteLoadedOnce === true && cloud._remoteWasEmpty === true){
     const localCount = Object.keys(state.entries || {}).length;
     if (localCount > 0){
@@ -363,6 +365,7 @@ function cloudMergeRemoteIntoLocal(remoteEntries, silent){
     saveState();
     if (!silent){
       refreshAllUI();
+      try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
     }
   }
 }
@@ -410,6 +413,7 @@ function bindAppEvents(){
     saveSettings();
 
     setCloudBadge("warn","☁️ Nube: local");
+    try { PRO_syncProBar(); } catch {}
   });
 
   btnLogoutApp?.addEventListener("click", ()=>{
@@ -421,11 +425,15 @@ function bindAppEvents(){
   btnToday?.addEventListener("click", ()=> setDateISO(toISODate(new Date())));
   btnYesterday?.addEventListener("click", ()=> setDateISO(addDaysISO(dateInput.value, -1)));
 
-  dateInput?.addEventListener("change", refreshAllUI);
+  dateInput?.addEventListener("change", ()=>{
+    refreshAllUI();
+    try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
+  });
 
   storeInput?.addEventListener("change", ()=>{
     fillEntryIfExists();
     highlightStoreQuick(storeInput.value);
+    try { PRO_syncHero(); PRO_syncProBar(); PRO_tryAutoSave("cambio tienda"); PRO_checkDiffAlerts(); } catch {}
   });
 
   document.querySelectorAll(".storebtn").forEach(btn=>{
@@ -436,6 +444,7 @@ function bindAppEvents(){
       highlightStoreQuick(v);
       fillEntryIfExists();
       cashInput?.focus();
+      try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
     });
   });
 
@@ -444,26 +453,46 @@ function bindAppEvents(){
     el?.addEventListener("input", ()=>{
       normalizeMoneyInput(el);
       updateComputedBoxes();
+      try { PRO_syncHero(); PRO_checkDiffAlerts(); } catch {}
     });
     el?.addEventListener("blur", ()=>{
-      // formateo suave en blur (no molesta al escribir)
       const n = round2(parseMoney(el.value));
       el.value = n ? String(n).replace(".", ",") : "";
       updateComputedBoxes();
+      try{
+        PRO_syncHero();
+        if (el === ticketInput) PRO_tryAutoSave("salir de ticket");
+        PRO_checkDiffAlerts();
+      }catch{}
     });
   }
 
-  btnSave?.addEventListener("click", onSave);
-  btnClear?.addEventListener("click", clearEntry);
-  btnDelete?.addEventListener("click", onDelete);
+  btnSave?.addEventListener("click", async ()=>{
+    await onSave();
+    try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
+  });
+
+  btnClear?.addEventListener("click", ()=>{
+    clearEntry();
+    try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
+  });
+
+  btnDelete?.addEventListener("click", async ()=>{
+    await onDelete();
+    try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
+  });
 
   btnCopyDay?.addEventListener("click", async ()=>{
     const txt = buildDayText(dateInput.value);
     await copyToClipboard(txt);
     toast(saveMsg, "Copiado ✅", true);
+    try { PRO_syncHero(); PRO_syncProBar(); } catch {}
   });
 
-  btnRefresh?.addEventListener("click", refreshReports);
+  btnRefresh?.addEventListener("click", ()=>{
+    refreshReports();
+    try { PRO_syncHero(); PRO_syncProBar(); } catch {}
+  });
   btnExportCSV?.addEventListener("click", exportCSV);
 
   btnToggleCharts?.addEventListener("click", ()=>{
@@ -477,6 +506,9 @@ function bindAppEvents(){
   btnScrollTop?.addEventListener("click", () => {
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch { window.scrollTo(0,0); }
   });
+
+  // ✅ PRO: Entrada rápida Enter
+  try { PRO_bindFastEntry(); } catch {}
 }
 
 /* =========================
@@ -490,7 +522,10 @@ function initMobileTabs(){
     tabSections.forEach(s => s.classList.toggle("active", s.id === id));
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
   }
-  tabButtons.forEach(btn => btn.addEventListener("click", () => activateTab(btn.dataset.tab)));
+  tabButtons.forEach(btn => btn.addEventListener("click", () => {
+    activateTab(btn.dataset.tab);
+    try { PRO_syncHero(); PRO_syncProBar(); } catch {}
+  }));
   activateTab("tab-entry");
 }
 
@@ -508,7 +543,6 @@ function initUX(){
     btnScrollTop.classList.toggle("show", show);
   });
 
-  // En móvil: por defecto ocultar charts extra
   const chartsEl = document.querySelector(".charts");
   if (chartsEl) chartsEl.classList.add("hide-secondary");
 }
@@ -537,6 +571,7 @@ function initDefaults(){
 function setDateISO(iso){
   dateInput.value = iso;
   refreshAllUI();
+  try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
 }
 
 function refreshAllUI(){
@@ -544,6 +579,7 @@ function refreshAllUI(){
   renderDayHistory();
   renderTodaySummary();
   refreshReports();
+  try { PRO_injectHero(); PRO_syncHero(); PRO_injectProBar(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
 }
 
 function showAppIfAllowed(){
@@ -561,6 +597,7 @@ function toggleTheme(){
   settings.theme = next;
   saveSettings();
   refreshReports();
+  try { PRO_syncHero(); PRO_syncProBar(); } catch {}
 }
 function applyTheme(theme){
   if (theme === "dark") document.documentElement.setAttribute("data-theme", "dark");
@@ -665,9 +702,9 @@ function deleteEntry(dateISO, storeId){
 ========================= */
 function semaClass(diff){
   const a = Math.abs(Number(diff || 0));
-  if (a <= 10) return "ok";      // verde
-  if (a <= 20) return "warn";    // amarillo
-  return "bad";                  // rojo
+  if (a <= 10) return "ok";
+  if (a <= 20) return "warn";
+  return "bad";
 }
 
 function semaText(diff){
@@ -680,8 +717,6 @@ function semaText(diff){
 
 /* =========================
    Computed boxes (Entrada)
-   Diferencia CORRECTA:
-   diff = (cash+card) - ticket
 ========================= */
 function updateComputedBoxes(){
   const cash = round2(parseMoney(cashInput.value));
@@ -699,7 +734,6 @@ function updateComputedBoxes(){
   diffBox.classList.remove("ok","warn","bad");
   diffBox.classList.add(semaClass(diff));
 
-  // Advertencia roja
   if (semaClass(diff) === "bad"){
     diffWarn.textContent = `⚠️ DIFERENCIA GRANDE: ${semaText(diff)} — revisa ticket o cobros.`;
     diffWarn.classList.remove("hidden");
@@ -708,7 +742,6 @@ function updateComputedBoxes(){
     diffWarn.textContent = "";
   }
 
-  // Gastos no entra en diff (pero queda guardado)
   void expenses;
 }
 
@@ -901,6 +934,7 @@ function renderDayHistory(){
       highlightStoreQuick(it.store);
       fillEntryIfExists();
       cashInput?.focus();
+      try { PRO_syncHero(); PRO_syncProBar(); PRO_checkDiffAlerts(); } catch {}
     });
     dayList.appendChild(div);
   }
@@ -971,6 +1005,8 @@ function refreshReports(){
 
   renderCharts(rows);
   renderRanking(from, to);
+
+  try { PRO_syncHero(); PRO_syncProBar(); } catch {}
 }
 
 function buildReport(type, store, from=null, to=null){
@@ -1245,7 +1281,7 @@ function exportBackup(){
   const payload = {
     meta: { app: "ARSLAN_VENTAS_V1", exportedAt: new Date().toISOString() },
     state,
-    settings: { ...settings, appAuthed:false } // no exportamos sesión
+    settings: { ...settings, appAuthed:false }
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
@@ -1269,7 +1305,6 @@ function importBackup(){
       const payload = JSON.parse(reader.result);
       if (!payload?.state?.entries) throw new Error("Formato no válido.");
 
-      // Merge local con import: gana el más reciente por updatedAt
       const imported = payload.state.entries || {};
       if (!state.entries) state.entries = {};
 
@@ -1319,10 +1354,7 @@ async function copyToClipboard(text){
    Boot (Gate must be first)
 ========================= */
 if (settings.appAuthed){
-  // si el usuario dejó la app abierta antes:
-  // volvemos a gate igualmente si no hay nube activa; pero permitimos local.
   if (settings.cloud?.enabled){
-    // Mostramos gate para login nube explícito (tu requisito “pregunte antes que todo”)
     showGate();
   } else {
     showApp();
@@ -1332,311 +1364,425 @@ if (settings.appAuthed){
 }
 
 /* =========================================================
-   ✅ APPEND PRO: HERO "VENTAS HOY" (Global + semáforo)
-   NO toca tus funciones, solo las usa.
+   ✅ PRO LAYER — integrado (Hero + ProBar + AutoSave + 7D/MES + Templates)
+   (Todo dentro del mismo app.js para evitar “errores de patches sueltos”)
 ========================================================= */
-(function(){
-  const heroDate = document.getElementById("ventasHeroDate");
-  const heroStore = document.getElementById("ventasHeroStore");
-  const heroTotal = document.getElementById("ventasHeroTotal");
-  const heroCash = document.getElementById("ventasHeroCash");
-  const heroCard = document.getElementById("ventasHeroCard");
-  const heroTicket = document.getElementById("ventasHeroTicket");
-  const heroDiff = document.getElementById("ventasHeroDiff");
-  const heroDiffChip = document.getElementById("ventasHeroDiffChip");
 
-  function syncHero(){
-    try{
-      const d = document.getElementById("dateInput")?.value;
-      const s = document.getElementById("storeInput")?.value;
-
-      if (heroDate) heroDate.textContent = d ? `${d} (${weekdayES(d)})` : "—";
-      if (heroStore) heroStore.textContent = s ? storeName(s) : "—";
-
-      if (!d){
-        if (heroTotal) heroTotal.textContent = "—";
-        if (heroCash) heroCash.textContent = "—";
-        if (heroCard) heroCard.textContent = "—";
-        if (heroTicket) heroTicket.textContent = "—";
-        if (heroDiff) heroDiff.textContent = "—";
-        if (heroDiffChip) heroDiffChip.classList.remove("ok","warn","bad");
-        return;
-      }
-
-      const t = computeDay(d);
-      const g = t.global;
-
-      if (heroTotal) heroTotal.textContent = formatMoney(g.total);
-      if (heroCash) heroCash.textContent = formatMoney(g.cash);
-      if (heroCard) heroCard.textContent = formatMoney(g.card);
-      if (heroTicket) heroTicket.textContent = formatMoney(g.ticket);
-
-      const diff = Number(g.diff || 0);
-      if (heroDiff) heroDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
-
-      if (heroDiffChip){
-        heroDiffChip.classList.remove("ok","warn","bad");
-        heroDiffChip.classList.add(semaClass(diff));
-      }
-    }catch(e){}
+const PRO = {
+  AUTO_SAVE_ENABLED: true,
+  STORE_TEMPLATES: {
+    san_pablo:  { cash:"", card:"", expenses:"", ticket:"" },
+    san_lesmes: { cash:"", card:"", expenses:"", ticket:"" },
+    santiago:   { cash:"", card:"", expenses:"", ticket:"" }
   }
+};
 
-  window.addEventListener("load", syncHero);
-  document.getElementById("dateInput")?.addEventListener("change", syncHero);
-  document.getElementById("storeInput")?.addEventListener("change", syncHero);
-  document.getElementById("btnSave")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-  document.getElementById("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-  document.getElementById("btnClear")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
+function PRO_injectHero(){
+  const entryTab = $("tab-entry");
+  if (!entryTab) return null;
+  if ($("ventasHeroRoot")) return $("ventasHeroRoot");
 
-  document.querySelectorAll(".storebtn").forEach(b=>{
-    b.addEventListener("click", ()=> setTimeout(syncHero, 0));
+  const hero = document.createElement("div");
+  hero.id = "ventasHeroRoot";
+  hero.className = "ventas-hero";
+  hero.innerHTML = `
+    <div class="ventas-hero-left">
+      <div class="ventas-hero-title">VENTAS HOY</div>
+      <div class="ventas-hero-sub muted small">Global (3 tiendas) + semáforo. DIF: (Efe+Tar) − Ticket.</div>
+    </div>
+
+    <div class="ventas-hero-right">
+      <div class="ventas-chip">
+        <div class="k">Fecha</div>
+        <div class="v" id="ventasHeroDate">—</div>
+      </div>
+
+      <div class="ventas-chip">
+        <div class="k">Tienda</div>
+        <div class="v" id="ventasHeroStore">—</div>
+      </div>
+
+      <div class="ventas-chip ventas-chip-strong">
+        <div class="k">GLOBAL Hoy</div>
+        <div class="v" id="ventasHeroTotal">—</div>
+      </div>
+
+      <div class="ventas-chip">
+        <div class="k">Efectivo Global</div>
+        <div class="v" id="ventasHeroCash">—</div>
+      </div>
+
+      <div class="ventas-chip">
+        <div class="k">Tarjeta Global</div>
+        <div class="v" id="ventasHeroCard">—</div>
+      </div>
+
+      <div class="ventas-chip">
+        <div class="k">Ticket Global</div>
+        <div class="v" id="ventasHeroTicket">—</div>
+      </div>
+
+      <div class="ventas-chip ventas-chip-diff" id="ventasHeroDiffChip">
+        <div class="k">DIF Global</div>
+        <div class="v" id="ventasHeroDiff">—</div>
+      </div>
+    </div>
+  `;
+
+  const firstCard = entryTab.querySelector(".card") || entryTab.firstElementChild;
+  if (firstCard) entryTab.insertBefore(hero, firstCard);
+  else entryTab.appendChild(hero);
+
+  // extras: count + actions
+  setTimeout(PRO_ensureHeroExtras, 0);
+
+  return hero;
+}
+
+function PRO_computeGlobalDay(dateISO){
+  const t = computeDay(dateISO);
+  return t.global;
+}
+
+function PRO_ensureHeroExtras(){
+  const hero = $("ventasHeroRoot");
+  if (!hero) return;
+  if ($("ventasHeroCount")) return;
+
+  const right = hero.querySelector(".ventas-hero-right");
+  if (!right) return;
+
+  const chipCount = document.createElement("div");
+  chipCount.className = "ventas-chip smallchip";
+  chipCount.innerHTML = `
+    <div class="k">Registros hoy</div>
+    <div class="v" id="ventasHeroCount">—</div>
+  `;
+
+  const actions = document.createElement("div");
+  actions.className = "ventas-actions";
+  actions.innerHTML = `
+    <button class="ventas-btn ghost" id="ventasHeroGoSummary">Ir a Resumen</button>
+    <button class="ventas-btn primary" id="ventasHeroCopy">Copiar resumen</button>
+  `;
+
+  right.appendChild(chipCount);
+  right.appendChild(actions);
+
+  $("ventasHeroCopy")?.addEventListener("click", async ()=>{
+    const dateISO = dateInput.value;
+    if (!dateISO) return;
+    const txt = buildDayText(dateISO);
+    await copyToClipboard(txt);
+    toast(saveMsg, "Copiado ✅", true);
   });
 
-  syncHero();
-   /* =========================================================
-   ✅ ARSLAN PRO — PATCH APPEND ONLY (NO TOCAR LO EXISTENTE)
-   Añade:
-   1) Hero "VENTAS HOY" encima de Entrada (inyectado por JS)
-   2) Semáforo DIF (Total - Ticket): ok/warn/bad
-   3) Sync automático con cambios de fecha/tienda/guardar/borrar/limpiar
-========================================================= */
-
-(function ARSLAN_PRO_PATCH(){
-  // ---------- Utils seguros (no pisan lo tuyo) ----------
-  const $ = (id) => document.getElementById(id);
-  const q = (sel, root=document) => root.querySelector(sel);
-
-  function parseMoneySafe(v){
-    if (typeof window.parseMoney === "function") return window.parseMoney(v);
-    if (!v) return 0;
-    const clean = String(v).replace(/\./g,"").replace(",",".").replace(/[^\d.-]/g,"");
-    const n = Number(clean);
-    return Number.isFinite(n) ? n : 0;
-  }
-  function round2Safe(n){
-    if (typeof window.round2 === "function") return window.round2(n);
-    return Math.round((Number(n||0) + Number.EPSILON) * 100) / 100;
-  }
-  function formatMoneySafe(n){
-    if (typeof window.formatMoney === "function") return window.formatMoney(n);
-    return Number(n||0).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
-  }
-  function weekdaySafe(dateISO){
-    if (typeof window.weekdayES === "function") return window.weekdayES(dateISO);
-    const d = new Date(dateISO + "T00:00:00");
-    const days = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
-    return days[d.getDay()];
-  }
-  function storeNameSafe(storeId){
-    if (typeof window.storeName === "function") return window.storeName(storeId);
-    const map = { san_pablo:"San Pablo", san_lesmes:"San Lesmes", santiago:"Santiago" };
-    return map[storeId] || storeId || "—";
-  }
-
-  function semaClass(diff){
-    const a = Math.abs(Number(diff||0));
-    if (a <= 10) return "ok";
-    if (a <= 20) return "warn";
-    return "bad";
-  }
-  function semaText(diff){
-    const v = Number(diff||0);
-    const abs = Math.abs(v).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
-    if (Math.abs(v) <= 0.01) return "Cuadra ✅";
-    if (v < 0) return `Faltan ${abs} €`;
-    return `Sobran ${abs} €`;
-  }
-  function formatSigned(diff){
-    const v = Number(diff||0);
-    const sign = v > 0 ? "+" : "";
-    return `${sign}${v.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} €`;
-  }
-
-  // ---------- Calcula GLOBAL del día sin depender de tu computeDay ----------
-  function computeGlobalDay(dateISO){
-    // Si existe tu computeDay, úsala
-    if (typeof window.computeDay === "function"){
-      const t = window.computeDay(dateISO);
-      if (t && t.global) return t.global;
+  $("ventasHeroGoSummary")?.addEventListener("click", ()=>{
+    const tabBtn = mobileTabs?.querySelector('[data-tab="tab-summary"]');
+    if (tabBtn) tabBtn.click();
+    const sec = $("tab-summary");
+    if (sec){
+      try{ sec.scrollIntoView({behavior:"smooth", block:"start"}); }catch{ sec.scrollIntoView(); }
     }
+  });
+}
 
-    // Fallback: intenta leer state.entries si existe
-    const stores = ["san_pablo","san_lesmes","santiago"];
-    let cash=0, card=0, ticket=0, expenses=0;
+function PRO_syncHero(){
+  PRO_injectHero();
+  PRO_ensureHeroExtras();
 
-    const st = window.state && window.state.entries ? window.state : null;
-    if (st && st.entries){
-      for (const s of stores){
-        const k = `${dateISO}__${s}`;
-        const e = st.entries[k];
-        if (!e) continue;
-        cash += Number(e.cash||0);
-        card += Number(e.card||0);
-        ticket += Number(e.ticket||0);
-        expenses += Number(e.expenses||0);
-      }
-      const total = round2Safe(cash + card);
-      const diff = round2Safe(total - ticket);
-      return { cash:round2Safe(cash), card:round2Safe(card), ticket:round2Safe(ticket), expenses:round2Safe(expenses), total, diff };
-    }
+  const dateISO = dateInput.value || "";
+  const storeId = storeInput.value || "";
 
-    // Último fallback: todo 0
-    const total = 0;
-    const diff = 0;
-    return { cash:0, card:0, ticket:0, expenses:0, total, diff };
+  const hDate = $("ventasHeroDate");
+  const hStore = $("ventasHeroStore");
+  const hTotal = $("ventasHeroTotal");
+  const hCash = $("ventasHeroCash");
+  const hCard = $("ventasHeroCard");
+  const hTicket = $("ventasHeroTicket");
+  const hDiff = $("ventasHeroDiff");
+  const hDiffChip = $("ventasHeroDiffChip");
+  const hCount = $("ventasHeroCount");
+
+  if (hDate) hDate.textContent = dateISO ? `${dateISO} (${weekdayES(dateISO)})` : "—";
+  if (hStore) hStore.textContent = storeId ? storeName(storeId) : "—";
+
+  if (!dateISO){
+    if (hTotal) hTotal.textContent = "—";
+    if (hCash) hCash.textContent = "—";
+    if (hCard) hCard.textContent = "—";
+    if (hTicket) hTicket.textContent = "—";
+    if (hDiff) hDiff.textContent = "—";
+    if (hCount) hCount.textContent = "—";
+    if (hDiffChip) hDiffChip.classList.remove("ok","warn","bad");
+    return;
   }
 
-  // ---------- Inserta Hero encima de Entrada ----------
-  function injectHero(){
-    // Busca el contenedor del tab Entrada
-    const entryTab = $("tab-entry") || q(".tab-section#tab-entry") || q(".tab-section.active");
-    if (!entryTab) return null;
+  const g = PRO_computeGlobalDay(dateISO);
+  if (hTotal) hTotal.textContent = formatMoney(g.total);
+  if (hCash) hCash.textContent = formatMoney(g.cash);
+  if (hCard) hCard.textContent = formatMoney(g.card);
+  if (hTicket) hTicket.textContent = formatMoney(g.ticket);
 
-    // Si ya existe, no duplicar
-    if ($("ventasHeroRoot")) return $("ventasHeroRoot");
+  const diff = round2(Number(g.total||0) - Number(g.ticket||0));
+  if (hDiff) hDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
 
-    // Crea nodo
-    const hero = document.createElement("div");
-    hero.id = "ventasHeroRoot";
-    hero.className = "ventas-hero";
-    hero.innerHTML = `
-      <div class="ventas-hero-left">
-        <div class="ventas-hero-title">VENTAS HOY</div>
-        <div class="ventas-hero-sub muted small">Global (3 tiendas) + semáforo. DIF: (Efe+Tar) − Ticket.</div>
+  if (hDiffChip){
+    hDiffChip.classList.remove("ok","warn","bad");
+    hDiffChip.classList.add(semaClass(diff));
+  }
+
+  if (hCount){
+    let c = 0;
+    if (getEntry(dateISO,"san_pablo")) c++;
+    if (getEntry(dateISO,"san_lesmes")) c++;
+    if (getEntry(dateISO,"santiago")) c++;
+    hCount.textContent = `${c}/3`;
+  }
+}
+
+/* -------- PROBAR -------- */
+function PRO_injectProBar(){
+  if ($("arslanProBar")) return;
+
+  const bar = document.createElement("div");
+  bar.id = "arslanProBar";
+  bar.className = "arslan-probar";
+  bar.innerHTML = `
+    <div class="probar-inner">
+      <div class="probar-left">
+        <div class="probar-brand">🥝 ARSLAN <span class="muted small" id="proCloudText" style="margin-left:6px">☁️ —</span></div>
+
+        <div class="probar-group" aria-label="Tiendas">
+          <button class="probtn" id="proStoreSP" data-store="san_pablo">San Pablo</button>
+          <button class="probtn" id="proStoreSL" data-store="san_lesmes">San Lesmes</button>
+          <button class="probtn" id="proStoreSA" data-store="santiago">Santiago</button>
+        </div>
+
+        <div class="probar-group" aria-label="Acciones">
+          <button class="probtn" id="proToday">Hoy</button>
+          <button class="probtn primary" id="proCopyDay">Copiar día</button>
+        </div>
       </div>
 
-      <div class="ventas-hero-right">
-        <div class="ventas-chip">
-          <div class="k">Fecha</div>
-          <div class="v" id="ventasHeroDate">—</div>
-        </div>
-
-        <div class="ventas-chip">
-          <div class="k">Tienda</div>
-          <div class="v" id="ventasHeroStore">—</div>
-        </div>
-
-        <div class="ventas-chip ventas-chip-strong">
-          <div class="k">GLOBAL Hoy</div>
-          <div class="v" id="ventasHeroTotal">—</div>
-        </div>
-
-        <div class="ventas-chip">
-          <div class="k">Efectivo Global</div>
-          <div class="v" id="ventasHeroCash">—</div>
-        </div>
-
-        <div class="ventas-chip">
-          <div class="k">Tarjeta Global</div>
-          <div class="v" id="ventasHeroCard">—</div>
-        </div>
-
-        <div class="ventas-chip">
-          <div class="k">Ticket Global</div>
-          <div class="v" id="ventasHeroTicket">—</div>
-        </div>
-
-        <div class="ventas-chip ventas-chip-diff" id="ventasHeroDiffChip">
-          <div class="k">DIF Global</div>
-          <div class="v" id="ventasHeroDiff">—</div>
+      <div class="probar-right">
+        <div class="probar-group" aria-label="Navegación">
+          <button class="probtn" id="proGoEntry">Entrada</button>
+          <button class="probtn" id="proGoSummary">Resumen</button>
+          <button class="probtn" id="proGoReports">Reportes</button>
         </div>
       </div>
-    `;
+    </div>
+  `;
 
-    // Insertar arriba del primer card del tab
-    const firstCard = entryTab.querySelector(".card") || entryTab.firstElementChild;
-    if (firstCard) entryTab.insertBefore(hero, firstCard);
-    else entryTab.appendChild(hero);
+  if (appView) appView.insertBefore(bar, appView.firstChild);
 
-    return hero;
+  // bind
+  $("proToday")?.addEventListener("click", ()=> btnToday?.click());
+  $("proCopyDay")?.addEventListener("click", async ()=> {
+    await copyToClipboard(buildDayText(dateInput.value));
+    toast(saveMsg, "Copiado ✅", true);
+  });
+
+  $("proGoEntry")?.addEventListener("click", ()=> PRO_goTab("tab-entry"));
+  $("proGoSummary")?.addEventListener("click", ()=> PRO_goTab("tab-summary"));
+  $("proGoReports")?.addEventListener("click", ()=> PRO_goTab("tab-reports"));
+
+  ["proStoreSP","proStoreSL","proStoreSA"].forEach(id=>{
+    $(id)?.addEventListener("click", ()=>{
+      const storeId = $(id).dataset.store;
+      storeInput.value = storeId;
+      try{ storeInput.dispatchEvent(new Event("change",{bubbles:true})); }catch{}
+      PRO_setActiveStoreBtn(storeId);
+      cashInput?.focus();
+    });
+  });
+
+  // add extras (7D/MES/plantillas)
+  setTimeout(PRO_ensureProBarExtras, 0);
+
+  // observe cloudStatus text changes
+  try{
+    if ("MutationObserver" in window && cloudStatus){
+      const mo = new MutationObserver(()=> PRO_syncProBar());
+      mo.observe(cloudStatus, { childList:true, subtree:true, characterData:true });
+    }
+  }catch{}
+}
+
+function PRO_goTab(tabId){
+  const tabBtn = mobileTabs?.querySelector(`[data-tab="${tabId}"]`);
+  if (tabBtn) tabBtn.click();
+  const sec = $(tabId);
+  if (sec){
+    try{ sec.scrollIntoView({behavior:"smooth", block:"start"}); }catch{ sec.scrollIntoView(); }
   }
+}
 
-  // ---------- Sync Hero ----------
-  function syncHero(){
-    try{
-      injectHero();
+function PRO_setActiveStoreBtn(storeId){
+  const map = [
+    ["proStoreSP","san_pablo"],
+    ["proStoreSL","san_lesmes"],
+    ["proStoreSA","santiago"]
+  ];
+  map.forEach(([btnId, sid])=>{
+    const b = $(btnId);
+    if (!b) return;
+    b.classList.toggle("active", sid === storeId);
+  });
+}
 
-      const dateISO = $("dateInput")?.value || "";
-      const storeId = $("storeInput")?.value || "";
+function PRO_syncProBar(){
+  PRO_injectProBar();
+  const t = $("proCloudText");
+  if (t) t.textContent = cloudStatus?.textContent || "☁️ —";
+  PRO_setActiveStoreBtn(storeInput.value);
+}
 
-      const hDate = $("ventasHeroDate");
-      const hStore = $("ventasHeroStore");
-      const hTotal = $("ventasHeroTotal");
-      const hCash = $("ventasHeroCash");
-      const hCard = $("ventasHeroCard");
-      const hTicket = $("ventasHeroTicket");
-      const hDiff = $("ventasHeroDiff");
-      const hDiffChip = $("ventasHeroDiffChip");
+function PRO_sumRangeGlobal(fromISO, toISODate){
+  const rows = buildReport("daily","global",fromISO,toISODate) || [];
+  const total = rows.reduce((a,r)=>a + Number(r.total||0), 0);
+  return round2(total);
+}
 
-      if (hDate) hDate.textContent = dateISO ? `${dateISO} (${weekdaySafe(dateISO)})` : "—";
-      if (hStore) hStore.textContent = storeId ? storeNameSafe(storeId) : "—";
+function PRO_ensureProBarExtras(){
+  const bar = $("arslanProBar");
+  if (!bar) return;
+  if ($("proBtn7D")) return;
 
-      if (!dateISO){
-        if (hTotal) hTotal.textContent = "—";
-        if (hCash) hCash.textContent = "—";
-        if (hCard) hCard.textContent = "—";
-        if (hTicket) hTicket.textContent = "—";
-        if (hDiff) hDiff.textContent = "—";
-        if (hDiffChip) hDiffChip.classList.remove("ok","warn","bad");
-        return;
-      }
+  const right = bar.querySelector(".probar-right");
+  if (!right) return;
 
-      const g = computeGlobalDay(dateISO);
+  const wrap = document.createElement("div");
+  wrap.className = "probar-group";
+  wrap.innerHTML = `
+    <button class="probtn compact" id="proBtn7D">7D</button>
+    <button class="probtn compact" id="proBtnMES">MES</button>
+    <div class="pro-rangechip">
+      <div class="k" id="proRangeLabel">Rango</div>
+      <div class="v" id="proRangeValue">—</div>
+    </div>
+    <button class="probtn compact" id="proTplSP">Plantilla SP</button>
+    <button class="probtn compact" id="proTplSL">Plantilla SL</button>
+    <button class="probtn compact" id="proTplSA">Plantilla SA</button>
+  `;
+  right.appendChild(wrap);
 
-      if (hTotal) hTotal.textContent = formatMoneySafe(g.total);
-      if (hCash) hCash.textContent = formatMoneySafe(g.cash);
-      if (hCard) hCard.textContent = formatMoneySafe(g.card);
-      if (hTicket) hTicket.textContent = formatMoneySafe(g.ticket);
+  $("proBtn7D")?.addEventListener("click", ()=>{
+    const toD = dateInput.value || toISODate(new Date());
+    const fromD = addDaysISO(toD, -6);
+    const total = PRO_sumRangeGlobal(fromD, toD);
+    $("proRangeLabel").textContent = `Global 7 días (${fromD}→${toD})`;
+    $("proRangeValue").textContent = formatMoney(total);
+  });
 
-      const diff = round2Safe(Number(g.total||0) - Number(g.ticket||0));
-      if (hDiff) hDiff.textContent = `${semaText(diff)} · ${formatSigned(diff)}`;
+  $("proBtnMES")?.addEventListener("click", ()=>{
+    const dISO = dateInput.value || toISODate(new Date());
+    const y = dISO.slice(0,4);
+    const m = dISO.slice(5,7);
+    const fromD = `${y}-${m}-01`;
+    const toD = dISO;
+    const total = PRO_sumRangeGlobal(fromD, toD);
+    $("proRangeLabel").textContent = `Global mes (${fromD}→${toD})`;
+    $("proRangeValue").textContent = formatMoney(total);
+  });
 
-      if (hDiffChip){
-        hDiffChip.classList.remove("ok","warn","bad");
-        hDiffChip.classList.add(semaClass(diff));
-      }
-    }catch(e){}
-  }
+  function applyTemplate(storeId){
+    const tpl = PRO.STORE_TEMPLATES[storeId];
+    if (!tpl) return;
 
-  // ---------- Listeners sin tocar tu código ----------
-  function hook(){
-    // Al cargar
-    syncHero();
+    if (tpl.cash !== undefined) cashInput.value = tpl.cash;
+    if (tpl.card !== undefined) cardInput.value = tpl.card;
+    if (tpl.expenses !== undefined) expensesInput.value = tpl.expenses;
+    if (tpl.ticket !== undefined) ticketInput.value = tpl.ticket;
 
-    // Cambios de fecha/tienda
-    $("dateInput")?.addEventListener("change", syncHero);
-    $("storeInput")?.addEventListener("change", syncHero);
-
-    // Si existen botones típicos
-    $("btnSave")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-    $("btnDelete")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-    $("btnClear")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-    $("btnToday")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-    $("btnYesterday")?.addEventListener("click", ()=> setTimeout(syncHero, 0));
-
-    // Store quick buttons
-    document.querySelectorAll(".storebtn").forEach(b=>{
-      b.addEventListener("click", ()=> setTimeout(syncHero, 0));
+    [cashInput,cardInput,expensesInput,ticketInput].forEach(el=>{
+      try{ el.dispatchEvent(new Event("input",{bubbles:true})); }catch{}
     });
 
-    // Si hay renderizaciones internas, re-sincro en interval corto (suave)
-    // (evita que tarde si tu app repinta tab)
-    let tries = 0;
-    const t = setInterval(()=>{
-      syncHero();
-      tries++;
-      if (tries > 12) clearInterval(t);
-    }, 250);
+    updateComputedBoxes();
+    toast(saveMsg, `Plantilla aplicada ✅ ${storeName(storeId)}`, true);
+    PRO_syncHero();
+    PRO_checkDiffAlerts();
   }
 
-  // Espera a que exista appView o tab-entry
-  function waitReady(){
-    const ok = document.getElementById("appView") || document.getElementById("tab-entry");
-    if (ok) hook();
-    else setTimeout(waitReady, 120);
+  $("proTplSP")?.addEventListener("click", ()=> applyTemplate("san_pablo"));
+  $("proTplSL")?.addEventListener("click", ()=> applyTemplate("san_lesmes"));
+  $("proTplSA")?.addEventListener("click", ()=> applyTemplate("santiago"));
+}
+
+/* -------- Entrada rápida Enter -------- */
+function PRO_bindFastEntry(){
+  const order = ["cashInput","cardInput","expensesInput","ticketInput"];
+  order.forEach((id, idx)=>{
+    const el = $(id);
+    if (!el) return;
+    el.addEventListener("keydown", (e)=>{
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const nextId = order[idx+1];
+      if (nextId) $(nextId)?.focus();
+      else btnSave?.click();
+    });
+  });
+}
+
+/* -------- Auto-save inteligente -------- */
+function PRO_getCurrentInputs(){
+  return {
+    cash: cashInput.value || "",
+    card: cardInput.value || "",
+    exp: expensesInput.value || "",
+    tic: ticketInput.value || ""
+  };
+}
+function PRO_isAllEmpty(inputs){
+  const a = [inputs.cash, inputs.card, inputs.exp, inputs.tic].map(s=>String(s||"").trim());
+  return a.every(x => x === "" || x === "0" || x === "0,00" || x === "0.00");
+}
+function PRO_differsFromExisting(dateISO, storeId, inputs){
+  const e = getEntry(dateISO, storeId);
+  const c = round2(parseMoney(inputs.cash));
+  const k = round2(parseMoney(inputs.card));
+  const x = round2(parseMoney(inputs.exp));
+  const t = round2(parseMoney(inputs.tic));
+
+  const ec = round2(Number(e?.cash||0));
+  const ek = round2(Number(e?.card||0));
+  const ex = round2(Number(e?.expenses||0));
+  const et = round2(Number(e?.ticket||0));
+
+  return (!e) || (c!==ec || k!==ek || x!==ex || t!==et);
+}
+function PRO_tryAutoSave(reason){
+  if (!PRO.AUTO_SAVE_ENABLED) return;
+  const dateISO = dateInput.value || "";
+  const storeId = storeInput.value || "";
+  if (!dateISO || !storeId) return;
+
+  const inputs = PRO_getCurrentInputs();
+  if (PRO_isAllEmpty(inputs)) return;
+  if (!PRO_differsFromExisting(dateISO, storeId, inputs)) return;
+
+  btnSave?.click();
+  toast(saveMsg, `Auto-guardado ✅ (${reason})`, true);
+}
+
+/* -------- DIF rojo alert (una vez por cambio) -------- */
+let __PRO_BAD_LAST__ = false;
+function PRO_checkDiffAlerts(){
+  const chip = $("ventasHeroDiffChip");
+  if (!chip) return;
+
+  const isBad = chip.classList.contains("bad");
+  if (!isBad){
+    __PRO_BAD_LAST__ = false;
+    return;
   }
-  waitReady();
 
-})();
+  if (__PRO_BAD_LAST__ === true) return;
+  __PRO_BAD_LAST__ = true;
 
-})();
+  toast(saveMsg, "⚠️ DIF ROJO: revisa ticket o cobros", false);
+  try{ if (navigator.vibrate) navigator.vibrate([90,60,90,60,140]); }catch{}
+}
